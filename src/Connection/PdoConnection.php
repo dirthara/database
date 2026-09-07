@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace Dirthara\Database\Connection;
 
 use PDO;
+use PDOException;
+use PDOStatement;
 use Dirthara\Database\Connection\Driver\Driver;
 use Dirthara\Database\Connection\Result\Result;
+use Dirthara\Database\Connection\Result\PdoResult;
+use Dirthara\Database\Connection\Exceptions\QueryException;
 use Dirthara\Database\Connection\Transaction\TransactionManager;
 
 final class PdoConnection implements Connection
@@ -24,9 +28,22 @@ final class PdoConnection implements Connection
         return $this->pdo ??= $this->driver->connect($this->config);
     }
 
+    /**
+     * @throws QueryException
+     */
     public function execute(string $query, array $parameters): Result
     {
-        // TODO: Implement execute() method.
+        try {
+            $statement = $this->pdo()->prepare($query);
+
+            $this->bindParameters($statement, $parameters);
+
+            $statement->execute();
+
+            return new PdoResult($statement);
+        } catch (PDOException $exception) {
+            throw QueryException::fromPdo(exception: $exception, query: $query);
+        }
     }
 
     public function transaction(callable $callback): mixed
@@ -62,5 +79,12 @@ final class PdoConnection implements Connection
     public function driver(): string
     {
         // TODO: Implement driver() method.
+    }
+
+    private function bindParameters(PDOStatement $statement, array $parameters): void
+    {
+        foreach ($parameters as $key => $value) {
+            $statement->bindValue($key, $value);
+        }
     }
 }
