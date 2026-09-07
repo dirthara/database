@@ -1,0 +1,20 @@
+{
+    "name": "dirthara/database",
+    "description": "Database connection for the Dirthara framework",
+    "type": "library",
+    "require": {
+        "php": "^8.5"
+    },
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Dirthara\\Database\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "DWL Lemmens"
+        }
+    ],
+    "minimum-stability": "dev"
+}

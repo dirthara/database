@@ -7,4 +7,12 @@ RUN apt-get update \
 
 COPY --from=composer:2.10.3 /usr/bin/composer /usr/local/bin/composer
 
+ARG LOCAL_UID=1000
+ARG LOCAL_GID=1000
+
+RUN groupadd --gid "${LOCAL_GID}" developer \
+    && useradd --uid "${LOCAL_UID}" --gid developer --create-home developer
+
+USER developer
+
 WORKDIR /app
