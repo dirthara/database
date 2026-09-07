@@ -21,10 +21,12 @@ final class PdoTransactionManager implements TransactionManager
     {
         if ($this->level === 0) {
             $this->pdo->beginTransaction();
-        } else {
-            $this->pdo->exec($this->grammar->createSavepoint($this->savepointName($this->level)));
+            $this->level++;
+
+            return;
         }
 
+        $this->pdo->exec($this->grammar->createSavepoint($this->savepointName($this->level)));
         $this->level++;
     }
 
