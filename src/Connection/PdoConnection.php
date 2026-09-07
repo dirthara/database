@@ -12,21 +12,29 @@ use Dirthara\Database\Connection\Result\Result;
 use Dirthara\Database\Connection\Result\PdoResult;
 use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Connection\Exceptions\QueryException;
+use Dirthara\Database\Connection\Transaction\TransactionGrammar;
 use Dirthara\Database\Connection\Transaction\TransactionManager;
+use Dirthara\Database\Connection\Transaction\PdoTransactionManager;
 
 final class PdoConnection implements Connection
 {
     private ?PDO $pdo = null;
+    private ?TransactionManager $transactions = null;
 
     public function __construct(
         private readonly ConnectionConfig $config,
         private readonly Driver $driver,
-        private readonly TransactionManager $transactions,
+        private readonly TransactionGrammar $transactionGrammar,
     ) {}
 
     private function pdo(): PDO
     {
         return $this->pdo ??= $this->driver->connect($this->config);
+    }
+
+    private function transactions(): TransactionManager
+    {
+        return $this->transactions ??= new PdoTransactionManager($this->pdo(), $this->transactionGrammar);
     }
 
     /**
@@ -58,27 +66,27 @@ final class PdoConnection implements Connection
 
     public function beginTransaction(): void
     {
-        $this->transactions->begin();
+        $this->transactions()->begin();
     }
 
     public function commit(): void
     {
-        $this->transactions->commit();
+        $this->transactions()->commit();
     }
 
     public function rollback(): void
     {
-        $this->transactions->rollback();
+        $this->transactions()->rollback();
     }
 
     public function inTransaction(): bool
     {
-        return $this->transactions->inTransaction();
+        return $this->transactions?->inTransaction() ?? false;
     }
 
     public function transaction(callable $callback): mixed
     {
-        return $this->transactions->run(fn() => call_user_func($callback, $this));
+        return $this->transactions()->run(fn() => call_user_func($callback, $this));
     }
 
     /**
@@ -103,6 +111,7 @@ final class PdoConnection implements Connection
 
     public function disconnect(): void
     {
+        $this->transactions = null;
         $this->pdo = null;
     }
 
