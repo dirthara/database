@@ -61,12 +61,12 @@ The enum is backed by PDO's own driver strings, so its values match what
 
 ## What each driver requires
 
-| Driver | `host` | `port` default | `database` | `charset` |
-| --- | --- | --- | --- | --- |
-| MySQL | Required | `3306` | Optional | DSN, defaults to `utf8mb4` |
-| PostgreSQL | Required | `5432` | Optional | `SET client_encoding` |
-| SQL Server | Required | Server default | Optional | Rejected |
-| SQLite | Ignored | — | Required | Rejected |
+| Driver | `host` | `port` default | `database` | `charset` | `dsn` |
+| --- | --- | --- | --- | --- | --- |
+| MySQL | Required | `3306` | Optional | DSN, defaults to `utf8mb4` | Appended |
+| PostgreSQL | Required | `5432` | Optional | `SET client_encoding` | Appended |
+| SQL Server | Required | Server default | Optional | Rejected | Appended |
+| SQLite | Ignored | — | Required | Rejected | Rejected |
 
 An empty or whitespace-only `host` counts as missing. A `host` or `database`
 containing a semicolon is refused, because a semicolon separates DSN fields and
@@ -100,7 +100,7 @@ path never quietly becomes an in-memory database whose writes disappear.
 
 ## Driver-specific options
 
-Two options are not uniform across drivers.
+Three options are not uniform across drivers.
 
 **`charset`** is applied where the database actually accepts it: through the DSN
 on MySQL, through `client_encoding` on PostgreSQL. SQLite and SQL Server throw a
@@ -111,6 +111,10 @@ field. A rejected charset is a configuration mistake worth hearing about.
 **`options`** are PDO attributes and reach PDO's constructor unchanged. They
 override the defaults each driver sets. See [the options
 array](configuration.md#the-options-array).
+
+**`dsn`** parameters are appended to the connection string of every driver that
+has one. SQLite's DSN is a bare path, so it refuses them. See [driver-specific
+DSN parameters](configuration.md#driver-specific-dsn-parameters).
 
 ## Writing a driver
 
@@ -145,6 +149,8 @@ The protected helpers available to a subclass:
 | `optionalDatabase($config)` | The database as a validated `DsnValue`, or null when it is absent. |
 | `charset($config)` | The charset as a validated `Charset`, or null when it is absent. |
 | `rejectCharset($config)` | Throws when a charset is configured. For databases that have no place to put one. |
+| `dsnParameters($config)` | The configured driver-specific parameters as a `;Name=Value` string, with both halves validated. Append it last. |
+| `rejectDsnParameters($config)` | Throws when any is configured. For a DSN with no `Key=Value` syntax. |
 | `context($config, $operation, $cause)` | Exception context: config diagnostics, the operation, and the SQLSTATE and driver code of a `PDOException`. |
 
 Only `createConnection()` needs to run; `connect()` already catches

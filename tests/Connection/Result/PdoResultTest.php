@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Tests\Connection\Result;
 
+use PDOStatement;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Connection\Connection;
 use Dirthara\Database\Tests\ConnectionTestCase;
+use Dirthara\Database\Connection\Result\PdoResult;
 use Dirthara\Database\Connection\Exceptions\ResultException;
 
 final class PdoResultTest extends ConnectionTestCase
@@ -117,5 +119,23 @@ final class PdoResultTest extends ConnectionTestCase
         }
 
         self::assertSame(['Ada', 'Grace'], $names);
+    }
+
+    #[Test]
+    public function it_rejects_a_column_name_when_the_driver_exposes_no_metadata(): void
+    {
+        $statement = $this->createStub(PDOStatement::class);
+        $statement->method('columnCount')->willReturn(1);
+        $statement->method('getColumnMeta')->willReturn(false);
+
+        try {
+            new PdoResult($statement)->column('name');
+
+            self::fail('Expected a ResultException.');
+        } catch (ResultException $exception) {
+            self::assertStringContainsString('does not expose column metadata', $exception->getMessage());
+            self::assertSame('name', $exception->getContext()['column']);
+            self::assertSame('column', $exception->getContext()['operation']);
+        }
     }
 }

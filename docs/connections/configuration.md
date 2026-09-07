@@ -41,6 +41,7 @@ $config = new ConnectionConfig(
 | `password` | `?string` | `null` | Login password. Marked `#[SensitiveParameter]`, so it is hidden in stack traces. Not used by SQLite. |
 | `charset` | `?string` | `null` | Client character set. Applied differently per driver, and rejected by two of them — see [driver-specific options](drivers.md#driver-specific-options). |
 | `options` | `array<int, mixed>` | `[]` | PDO attributes keyed by the `PDO::ATTR_*` constants. Overrides the defaults the drivers set. |
+| `dsn` | `array<string, scalar>` | `[]` | Driver-specific parameters appended to the DSN, such as `sslmode` or `TrustServerCertificate`. Rejected by SQLite, which has nowhere to put them. |
 
 Every argument except `driver` has a default, and they are all named, so a
 config only mentions what it actually needs.
@@ -79,6 +80,50 @@ failures stop being exceptions; with another fetch mode, `Result` no longer
 returns string-keyed rows.
 :::
 
+## Driver-specific DSN parameters
+
+`options` are PDO attributes; `dsn` is everything the database's own connection
+string accepts and the config has no field for. Each pair is appended as
+`;Name=Value`.
+
+```php
+new ConnectionConfig(
+    driver: DriverName::PostgresSql,
+    host: 'postgres',
+    database: 'app',
+    dsn: ['sslmode' => 'require'],
+);
+
+new ConnectionConfig(
+    driver: DriverName::SqlServer,
+    host: 'sqlserver',
+    dsn: ['Encrypt' => 'yes', 'TrustServerCertificate' => 'no'],
+);
+```
+
+This is how you require TLS. PostgreSQL takes `sslmode`; SQL Server takes
+`Encrypt` and `TrustServerCertificate`, and ODBC Driver 18 already encrypts by
+default, so what you usually need is a certificate it can verify. MySQL takes
+`unix_socket` among others.
+
+Both halves of a pair are validated when the connection opens, because a DSN is
+assembled by concatenation and neither half can be a bound parameter:
+
+- The name must be an identifier: a letter, then letters, digits, or
+  underscores. `'Trust Server Certificate'` is refused.
+- The value must not contain a semicolon, so it cannot append a field of its
+  own. `'no;Database=other'` is refused.
+
+Either violation throws a `ConnectionException` carrying the connection's
+diagnostics. SQLite has no `Key=Value` DSN, so it refuses any parameter rather
+than accepting and ignoring it.
+
+:::caution
+Do not put credentials here. `username` and `password` have their own fields,
+which keep them out of diagnostics and stack traces; anything in `dsn` is shown
+in full when the config is dumped.
+:::
+
 ## Diagnostics and debugging
 
 `diagnostics()` returns the subset of the config that is safe to log —
@@ -98,4 +143,5 @@ it and the driver's own error message contains it anyway.
 
 Both are marked `#[SensitiveParameter]`, which keeps them out of stack traces,
 and neither is part of `diagnostics()`, so neither reaches exception context or
-a log line.
+a log line. `dsn` is left out of `diagnostics()` for the same reason: a
+driver-specific parameter can carry more than it looks like.

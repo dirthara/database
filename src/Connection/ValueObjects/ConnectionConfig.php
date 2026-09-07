@@ -13,6 +13,7 @@ final readonly class ConnectionConfig
 {
     /**
      * @param array<int, mixed> $options
+     * @param array<string, scalar> $dsn
      */
     public function __construct(
         public DriverName $driver,
@@ -26,6 +27,7 @@ final readonly class ConnectionConfig
         public ?string $password = null,
         public ?string $charset = null,
         public array $options = [],
+        public array $dsn = [],
     ) {}
 
     /**
@@ -60,6 +62,7 @@ final readonly class ConnectionConfig
             'password' => $this->password === null ? null : '[redacted]',
             'charset' => $this->charset,
             'options' => $this->options,
+            'dsn' => $this->dsn,
         ];
     }
 }

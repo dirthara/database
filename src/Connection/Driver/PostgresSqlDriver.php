@@ -36,6 +36,8 @@ class PostgresSqlDriver extends PdoDriver
             $dsn .= ';dbname=' . $database->value;
         }
 
+        $dsn .= $this->dsnParameters($config);
+
         $pdo = new PDO($dsn, $config->username, $config->password, $this->options($config));
 
         $charset = $this->charset($config);

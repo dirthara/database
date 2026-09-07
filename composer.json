@@ -44,9 +44,16 @@
         "analyze": "mago analyze",
         "guard": "mago guard",
         "test": "phpunit",
+        "test-coverage": "XDEBUG_MODE=coverage phpunit --coverage-clover=build/coverage/clover.xml",
+        "coverage": "php scripts/coverage.php build/coverage/clover.xml 100",
         "cs": [
             "@fmt",
             "@lint"
+        ],
+        "ci": [
+            "@mago",
+            "@test-coverage",
+            "@coverage"
         ]
     }
 }

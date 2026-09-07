@@ -65,13 +65,14 @@ Out of scope:
 Two of the package's own rules exist for security reasons, and overriding them
 weakens the guarantees above.
 
-A charset, a savepoint prefix, and DSN fields such as a host or database name
-end up in text that cannot be parameterised, so they are validated on
-construction and rejected when they do not match a strict pattern. A driver of
-your own should use the `PdoDriver` helpers rather than concatenating a DSN
-directly.
+A charset, a savepoint prefix, and DSN fields such as a host, a database name, or
+a driver-specific parameter end up in text that cannot be parameterised, so they
+are validated on construction and rejected when they do not match a strict
+pattern. Both halves of a DSN parameter are checked, so neither a name nor a
+value can append a field of its own. A driver of your own should use the
+`PdoDriver` helpers rather than concatenating a DSN directly.
 
 Exception context is written to logs. It carries the connection name, driver,
 host, port, database, operation, SQLSTATE, and the SQL — never a username, a
-password, a credential-bearing DSN, or a bound parameter value. Keep that split in your own
-drivers, middleware, and exceptions.
+password, a credential-bearing DSN, or a bound parameter value. Keep that split
+in your own drivers, middleware, and exceptions.

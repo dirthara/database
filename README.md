@@ -19,7 +19,11 @@ site by a separate package.
 ## Docker development environment
 
 Requires Docker with Docker Compose. The development image provides PHP 8.5 CLI,
-Composer 2.10.3, and PDO.
+Composer 2.10.3, Mago, Xdebug, and a PDO driver for every database the package
+supports: `pdo_sqlite`, `pdo_mysql`, `pdo_pgsql`, and `pdo_sqlsrv`. Extensions
+are installed with
+[install-php-extensions](https://github.com/mlocati/docker-php-extension-installer),
+pinned in the Dockerfile alongside every other tool version.
 
 Build the image and start the PHP container in the background:
 
@@ -57,9 +61,11 @@ Stop and remove the development container when finished:
 docker compose down
 ```
 
-PDO is the shared database interface. The base image provides `pdo_sqlite`, which
-the test suite uses. Driver extensions and database services for MySQL,
-PostgreSQL, and SQL Server will be added when integration tests need them.
+`docker compose up -d php` also starts PostgreSQL, MySQL, and SQL Server and
+waits until each reports healthy, because the integration tests need them. The
+first start pulls roughly a gigabyte of images and SQL Server takes around thirty
+seconds to accept connections. The SQL Server image is published for amd64 only,
+so its tests skip on an arm64 host.
 
 ## Tests
 
@@ -69,10 +75,52 @@ Run the suite through Composer in the PHP container:
 docker compose exec php composer test
 ```
 
-The suite runs against SQLite in memory, so it needs no database service. Tests
-that cover the MySQL, PostgreSQL, and SQL Server drivers assert on
-configuration handling and DSN validation, which happen before PDO is asked to
-connect.
+Most of the suite runs against SQLite in memory. Tests that cover the MySQL and
+SQL Server drivers assert on configuration handling and DSN validation, which
+happen before PDO is asked to connect.
+
+`tests/Integration` holds one conformance suite that every driver runs against a
+real server: connecting, binding, reading results, and committing, rolling back,
+and nesting transactions. Assembling a DSN is not evidence of assembling the
+right one, and savepoint grammar cannot be judged without a server that accepts
+or rejects it.
+
+| Suite | Service | Notes |
+| --- | --- | --- |
+| `SQLiteConformanceTest` | none | In memory, so it always runs. |
+| `PostgresSqlConformanceTest` | `postgres` | Also covers `client_encoding` and a sequence-named `lastInsertId()`. |
+| `MySqlConformanceTest` | `mysql` | Also covers the charset the DSN carries. |
+| `SqlServerConformanceTest` | `sqlserver` | The only run that exercises `SqlServerTransactionGrammar`. |
+
+The SQL Server suite passes `TrustServerCertificate=yes` through the config's
+`dsn` parameters, because ODBC Driver 18 encrypts and verifies by default and the
+development container presents a self-signed certificate. Production connections
+should trust a real certificate chain instead.
+
+Each suite skips when its PDO driver is missing, and reads its connection from
+`DIRTHARA_POSTGRES_*`, `DIRTHARA_MYSQL_*`, and `DIRTHARA_SQLSRV_*`
+(`_HOST`, `_PORT`, `_DATABASE`, `_USERNAME`, `_PASSWORD`), defaulting to the
+services in `compose.yaml`.
+
+### Coverage
+
+Xdebug is installed but inactive, so the suite runs at full speed.
+`composer test-coverage` turns it on for that one command and writes
+`build/coverage/clover.xml`:
+
+```sh
+docker compose exec php composer test-coverage
+docker compose exec php composer coverage
+```
+
+`composer coverage` fails when line coverage of `src` is below 100% and lists
+every uncovered line. It needs the PostgreSQL service running, since that driver
+applies a charset only after connecting and no other test reaches those lines.
+Run everything CI runs, in CI's order, with:
+
+```sh
+docker compose exec php composer ci
+```
 
 ## Mago
 
@@ -132,6 +180,13 @@ export LOCAL_UID=$(id -u) LOCAL_GID=$(id -g)
 The `mago.toml` configuration targets PHP 8.5 and the `src` and `tests` directories, with `vendor`
 available for dependency analysis. The `tools` profile keeps Mago out of the
 normal background services; explicitly running the service activates it.
+
+## Contributing
+
+Every supported version has its own branch, fixes land on the earliest supported
+branch that has the bug, and pull requests need the `CI` check to pass with full
+coverage of `src`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the branching and
+release strategy.
 
 ## Security
 

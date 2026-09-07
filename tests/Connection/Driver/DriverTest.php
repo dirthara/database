@@ -7,6 +7,7 @@ namespace Dirthara\Database\Tests\Connection\Driver;
 use PDO;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
+use Dirthara\Database\Connection\Operation;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Database\Connection\Driver\Driver;
 use Dirthara\Database\Connection\Driver\DriverName;
@@ -182,5 +183,80 @@ final class DriverTest extends TestCase
 
         self::assertSame($standard, new MySqlDriver($standard)->transactionGrammar());
         self::assertSame($sqlServer, new SqlServerDriver($sqlServer)->transactionGrammar());
+    }
+
+    #[Test]
+    #[DataProvider('hostDrivers')]
+    public function it_hands_a_dsn_built_from_the_whole_configuration_to_pdo(Driver $driver, DriverName $name): void
+    {
+        try {
+            $driver->connect(new ConnectionConfig(
+                driver: $name,
+                name: 'primary',
+                host: 'db.invalid',
+                port: 5000,
+                database: 'app',
+                username: 'app_user',
+                // @mago-expect lint:no-literal-password
+                password: 'hunter2',
+            ));
+
+            self::fail('Expected a ConnectionException.');
+        } catch (ConnectionException $exception) {
+            self::assertSame(Operation::Connect->value, $exception->getContext()['operation']);
+            self::assertSame('app', $exception->getContext()['database']);
+            self::assertSame(5000, $exception->getContext()['port']);
+        }
+    }
+
+    #[Test]
+    #[DataProvider('hostDrivers')]
+    public function it_leaves_a_blank_database_out_of_the_dsn(Driver $driver, DriverName $name): void
+    {
+        $this->expectException(ConnectionException::class);
+
+        $driver->connect(new ConnectionConfig(driver: $name, host: 'db.invalid', database: '   '));
+    }
+
+    #[Test]
+    #[DataProvider('hostDrivers')]
+    public function it_rejects_a_dsn_parameter_name_that_is_not_an_identifier(Driver $driver, DriverName $name): void
+    {
+        try {
+            $driver->connect(new ConnectionConfig(driver: $name, name: 'primary', host: 'db.invalid', dsn: [
+                'Trust Server Certificate' => 'yes',
+            ]));
+
+            self::fail('Expected a ConnectionException.');
+        } catch (ConnectionException $exception) {
+            self::assertStringContainsString('must be an identifier', $exception->getMessage());
+            self::assertSame('Trust Server Certificate', $exception->getContext()['parameter']);
+            self::assertSame('primary', $exception->getContext()['connection']);
+        }
+    }
+
+    #[Test]
+    #[DataProvider('hostDrivers')]
+    public function it_rejects_a_dsn_parameter_that_would_inject_another(Driver $driver, DriverName $name): void
+    {
+        $this->expectException(ConnectionException::class);
+        $this->expectExceptionMessage('must not contain a semicolon');
+
+        $driver->connect(new ConnectionConfig(driver: $name, host: 'db.invalid', dsn: [
+            'Encrypt' => 'no;Database=other',
+        ]));
+    }
+
+    #[Test]
+    public function sqlite_rejects_dsn_parameters_it_has_nowhere_to_put(): void
+    {
+        $this->expectException(ConnectionException::class);
+        $this->expectExceptionMessage('SQLite does not support driver-specific DSN parameters.');
+
+        new SQLiteDriver(new StandardTransactionGrammar(new SavepointPrefix()))->connect(new ConnectionConfig(
+            driver: DriverName::SQLite,
+            database: ':memory:',
+            dsn: ['mode' => 'ro'],
+        ));
     }
 }

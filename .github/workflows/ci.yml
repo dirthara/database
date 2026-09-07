@@ -1,0 +1,149 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# A push to a branch with an open pull request triggers both events. Grouping by
+# ref keeps only the newest run of each.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mago:
+    name: Mago
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+
+      # Mago runs through the image pinned in compose.yaml, so CI and a local
+      # checkout always run the same version. Every check runs even when an
+      # earlier one fails, which is what scripts/mago.sh does locally.
+      - name: Check formatting
+        run: LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) docker compose run --rm mago fmt --check
+
+      - name: Lint
+        if: ${{ !cancelled() }}
+        run: LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) docker compose run --rm mago lint
+
+      - name: Analyze
+        if: ${{ !cancelled() }}
+        run: LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) docker compose run --rm mago analyze
+
+      - name: Guard architecture rules
+        if: ${{ !cancelled() }}
+        run: LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) docker compose run --rm mago guard
+
+  tests:
+    name: Tests (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every PHP version the package supports, per the constraint in
+        # composer.json. Add a version here and to that constraint together.
+        php:
+          - '8.5'
+    # tests/Integration runs the same conformance suite against every driver, on
+    # a real server. Assembling a DSN is not evidence of assembling the right
+    # one, and savepoint grammar cannot be judged without a server that accepts
+    # or rejects it. The coverage gate below depends on PostgreSQL in particular.
+    # These credentials belong to throwaway containers.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: dirthara
+          POSTGRES_USER: dirthara
+          POSTGRES_PASSWORD: dirthara
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dirthara -d dirthara"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: dirthara
+          MYSQL_USER: dirthara
+          MYSQL_PASSWORD: dirthara
+          MYSQL_ROOT_PASSWORD: dirthara
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -udirthara -pdirthara"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 30
+          --health-start-period 20s
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: 'Y'
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: 'Dirthara!2026'
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Dirthara!2026' -C -Q 'SELECT 1'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+          --health-start-period 20s
+    env:
+      DIRTHARA_POSTGRES_HOST: 127.0.0.1
+      DIRTHARA_POSTGRES_PORT: 5432
+      DIRTHARA_POSTGRES_DATABASE: dirthara
+      DIRTHARA_POSTGRES_USERNAME: dirthara
+      DIRTHARA_POSTGRES_PASSWORD: dirthara
+      DIRTHARA_MYSQL_HOST: 127.0.0.1
+      DIRTHARA_MYSQL_PORT: 3306
+      DIRTHARA_MYSQL_DATABASE: dirthara
+      DIRTHARA_MYSQL_USERNAME: dirthara
+      DIRTHARA_MYSQL_PASSWORD: dirthara
+      DIRTHARA_SQLSRV_HOST: 127.0.0.1
+      DIRTHARA_SQLSRV_PORT: 1433
+      DIRTHARA_SQLSRV_DATABASE: master
+      DIRTHARA_SQLSRV_USERNAME: sa
+      DIRTHARA_SQLSRV_PASSWORD: 'Dirthara!2026'
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+
+      - name: Set up PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo, pdo_sqlite, pdo_pgsql, pdo_mysql, pdo_sqlsrv
+          coverage: xdebug
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Install dependencies
+        uses: ramsey/composer-install@v3
+
+      - name: Run the test suite with coverage
+        run: composer test-coverage
+
+      - name: Require full coverage of the source
+        run: composer coverage
+
+  # The one check branch protection requires. It stays green only when every job
+  # above succeeded, so the matrix can grow without touching branch protection.
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    needs: [mago, tests]
+    if: ${{ always() }}
+    steps:
+      - name: Verify that every job succeeded
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
+        run: exit 1

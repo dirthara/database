@@ -10,6 +10,7 @@ use Dirthara\Database\Connection\Operation;
 use Dirthara\Database\Connection\Pdo\PdoError;
 use Dirthara\Database\Connection\ValueObjects\Charset;
 use Dirthara\Database\Connection\ValueObjects\DsnValue;
+use Dirthara\Database\Connection\ValueObjects\DsnParameter;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 use Dirthara\Database\Connection\Exceptions\ConnectionException;
 use Dirthara\Database\Connection\Transaction\TransactionGrammar;
@@ -123,6 +124,41 @@ abstract class PdoDriver implements Driver
             return new Charset($config->charset);
         } catch (ConnectionException $exception) {
             throw $exception->addContext($this->context($config));
+        }
+    }
+
+    /**
+     * The configured driver-specific parameters, ready to append to a DSN.
+     *
+     * @throws ConnectionException
+     */
+    protected function dsnParameters(ConnectionConfig $config): string
+    {
+        $dsn = '';
+
+        foreach ($config->dsn as $name => $value) {
+            try {
+                $parameter = new DsnParameter($name, (string) $value);
+            } catch (ConnectionException $exception) {
+                throw $exception->addContext($this->context($config));
+            }
+
+            $dsn .= ';' . $parameter->toDsn();
+        }
+
+        return $dsn;
+    }
+
+    /**
+     * @throws ConnectionException
+     */
+    protected function rejectDsnParameters(ConnectionConfig $config): void
+    {
+        if ($config->dsn !== []) {
+            throw new ConnectionException(
+                sprintf('%s does not support driver-specific DSN parameters.', $this->name()->name),
+                context: $this->context($config),
+            );
         }
     }
 

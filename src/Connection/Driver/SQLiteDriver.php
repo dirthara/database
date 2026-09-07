@@ -21,6 +21,7 @@ class SQLiteDriver extends PdoDriver
     protected function createConnection(ConnectionConfig $config): PDO
     {
         $this->rejectCharset($config);
+        $this->rejectDsnParameters($config);
 
         $database = $config->database;
 

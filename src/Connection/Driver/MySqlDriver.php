@@ -42,6 +42,8 @@ class MySqlDriver extends PdoDriver
             $dsn .= ';dbname=' . $database->value;
         }
 
+        $dsn .= $this->dsnParameters($config);
+
         return new PDO($dsn, $config->username, $config->password, $this->options($config));
     }
 

@@ -8,6 +8,7 @@ use PDO;
 use RuntimeException;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
+use Dirthara\Database\Connection\Operation;
 use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Exceptions\DatabaseException;
 use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
@@ -217,5 +218,25 @@ final class PdoTransactionManagerTest extends TestCase
 
         self::assertSame(['outer'], $this->names());
         self::assertSame(0, $manager->level());
+    }
+
+    #[Test]
+    public function it_reports_an_operation_the_database_refused(): void
+    {
+        $this->pdo = new class('sqlite::memory:') extends PDO {
+            public function beginTransaction(): bool
+            {
+                return false;
+            }
+        };
+
+        try {
+            $this->manager()->begin();
+
+            self::fail('Expected a TransactionException.');
+        } catch (TransactionException $exception) {
+            self::assertSame('The database refused the begin operation.', $exception->getMessage());
+            self::assertSame(Operation::Begin->value, $exception->getContext()['operation']);
+        }
     }
 }

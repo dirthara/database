@@ -5,14 +5,21 @@ declare(strict_types=1);
 namespace Dirthara\Database\Tests\Connection;
 
 use PDO;
+use PDOException;
 use RuntimeException;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Connection\Operation;
+use Dirthara\Database\Connection\Driver\Driver;
+use Dirthara\Database\Connection\PdoConnection;
 use Dirthara\Database\Tests\ConnectionTestCase;
 use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Connection\Exceptions\QueryException;
+use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
+use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 use Dirthara\Database\Connection\Exceptions\ConnectionException;
+use Dirthara\Database\Connection\Transaction\TransactionGrammar;
 use Dirthara\Database\Connection\Exceptions\TransactionException;
+use Dirthara\Database\Connection\Transaction\StandardTransactionGrammar;
 
 final class PdoConnectionTest extends ConnectionTestCase
 {
@@ -243,5 +250,50 @@ final class PdoConnectionTest extends ConnectionTestCase
 
         self::assertSame([], $connection->execute('SELECT name FROM users')->all());
         self::assertFalse($connection->transactions()->inTransaction());
+    }
+
+    #[Test]
+    public function it_wraps_a_failing_last_insert_id_in_a_query_exception(): void
+    {
+        $pdo = new class('sqlite::memory:') extends PDO {
+            public function lastInsertId(?string $name = null): string|false
+            {
+                throw new PDOException('the connection is gone');
+            }
+        };
+
+        $connection = new PdoConnection(
+            new ConnectionConfig(driver: DriverName::SQLite, name: 'testing', database: ':memory:'),
+            new class($pdo) implements Driver {
+                public function __construct(
+                    private readonly PDO $pdo,
+                ) {}
+
+                public function name(): DriverName
+                {
+                    return DriverName::SQLite;
+                }
+
+                public function transactionGrammar(): TransactionGrammar
+                {
+                    return new StandardTransactionGrammar(new SavepointPrefix());
+                }
+
+                public function connect(ConnectionConfig $config): PDO
+                {
+                    return $this->pdo;
+                }
+            },
+        );
+
+        try {
+            $connection->lastInsertId();
+
+            self::fail('Expected a QueryException.');
+        } catch (QueryException $exception) {
+            self::assertSame('the connection is gone', $exception->getMessage());
+            self::assertSame(Operation::LastInsertId->value, $exception->getContext()['operation']);
+            self::assertSame('testing', $exception->getContext()['connection']);
+        }
     }
 }

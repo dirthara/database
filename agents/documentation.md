@@ -10,12 +10,20 @@ The root README covers the repository, not the library. It contains, in order:
 2. How to install the package with Composer, and its requirements.
 3. How to set up the local development environment.
 4. How to run the tests.
-5. How to run the linters, formatter, and static analyzer.
-6. Where to report a vulnerability, linking to `SECURITY.md`.
-7. The license, linking to `LICENSE`.
+5. How to run the linters, formatter, and static analyzer, and the coverage gate.
+6. Where the contributing and branching rules live, linking to `CONTRIBUTING.md`.
+7. Where to report a vulnerability, linking to `SECURITY.md`.
+8. The license, linking to `LICENSE`.
 
 Usage, options, and API documentation do not belong in the README. It links to
 `docs` instead.
+
+## CONTRIBUTING.md
+
+The root `CONTRIBUTING.md` owns the branching and release strategy, what a pull
+request has to satisfy, and the maintainer steps for a new release branch. The
+supported versions table there and the one in `SECURITY.md` list the same
+branches; update both together.
 
 ## SECURITY.md
 
