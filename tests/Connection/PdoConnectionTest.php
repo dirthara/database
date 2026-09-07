@@ -163,7 +163,7 @@ final class PdoConnectionTest extends ConnectionTestCase
     {
         $connection = $this->withUsers();
 
-        $connection->beginTransaction();
+        $connection->transactions()->begin();
 
         try {
             $connection->disconnect();
@@ -174,7 +174,7 @@ final class PdoConnectionTest extends ConnectionTestCase
             self::assertSame('disconnect', $exception->getContext()['operation']);
         }
 
-        self::assertTrue($connection->inTransaction());
+        self::assertTrue($connection->transactions()->inTransaction());
     }
 
     #[Test]
@@ -184,7 +184,7 @@ final class PdoConnectionTest extends ConnectionTestCase
 
         $connection->disconnect();
 
-        self::assertFalse($connection->inTransaction());
+        self::assertFalse($connection->transactions()->inTransaction());
         self::assertSame([], $connection->execute('SELECT name FROM sqlite_master WHERE name = ?', ['users'])->all());
     }
 
@@ -193,8 +193,8 @@ final class PdoConnectionTest extends ConnectionTestCase
     {
         $connection = $this->withUsers();
 
-        $result = $connection->transaction(static function ($transactional): string {
-            $transactional->execute('INSERT INTO users (name, active) VALUES (?, ?)', ['Ada', 1]);
+        $result = $connection->transactions()->run(static function () use ($connection): string {
+            $connection->execute('INSERT INTO users (name, active) VALUES (?, ?)', ['Ada', 1]);
 
             return 'done';
         });
@@ -211,8 +211,8 @@ final class PdoConnectionTest extends ConnectionTestCase
         $caught = null;
 
         try {
-            $connection->transaction(static function ($transactional): void {
-                $transactional->execute('INSERT INTO users (name, active) VALUES (?, ?)', ['Ada', 1]);
+            $connection->transactions()->run(static function () use ($connection): void {
+                $connection->execute('INSERT INTO users (name, active) VALUES (?, ?)', ['Ada', 1]);
 
                 throw new RuntimeException('callback failed');
             });
@@ -224,6 +224,6 @@ final class PdoConnectionTest extends ConnectionTestCase
         self::assertSame('callback failed', $caught->getMessage());
 
         self::assertSame([], $connection->execute('SELECT name FROM users')->all());
-        self::assertFalse($connection->inTransaction());
+        self::assertFalse($connection->transactions()->inTransaction());
     }
 }

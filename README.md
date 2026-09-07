@@ -52,10 +52,13 @@ raised by the rollback itself never replaces the exception that caused it; it is
 recorded under `rollback_failure` in the context instead.
 
 ```php
-$connection->transaction(function (Connection $connection): void {
+$connection->transactions()->run(function () use ($connection): void {
     $connection->execute('INSERT INTO users (name) VALUES (?)', ['Ada']);
 });
 ```
+
+`transactions()` also exposes `begin()`, `commit()`, `rollback()`,
+`inTransaction()`, and `level()` for control that does not fit a callback.
 
 Every exception extends `DatabaseException` and carries diagnostic context for a
 PSR-3 logger, including the connection name, driver, and operation. Credentials

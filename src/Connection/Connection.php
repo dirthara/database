@@ -8,6 +8,7 @@ use Dirthara\Database\Connection\Result\Result;
 use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Connection\Exceptions\QueryException;
 use Dirthara\Database\Connection\Exceptions\ConnectionException;
+use Dirthara\Database\Connection\Transaction\TransactionManager;
 use Dirthara\Database\Connection\Exceptions\TransactionException;
 
 interface Connection
@@ -27,30 +28,9 @@ interface Connection
     public function lastInsertId(?string $sequence = null): ?string;
 
     /**
-     * @template T
-     *
-     * @param callable(Connection): T $callback
-     *
-     * @return T
+     * @throws ConnectionException
      */
-    public function transaction(callable $callback): mixed;
-
-    /**
-     * @throws TransactionException
-     */
-    public function beginTransaction(): void;
-
-    /**
-     * @throws TransactionException
-     */
-    public function commit(): void;
-
-    /**
-     * @throws TransactionException
-     */
-    public function rollback(): void;
-
-    public function inTransaction(): bool;
+    public function transactions(): TransactionManager;
 
     /**
      * @throws TransactionException

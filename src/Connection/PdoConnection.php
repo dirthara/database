@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Dirthara\Database\Connection;
 
 use PDO;
-use Throwable;
 use PDOException;
 use PDOStatement;
 use Dirthara\Database\Connection\Pdo\PdoError;
@@ -46,7 +45,7 @@ final class PdoConnection implements Connection
     /**
      * @throws ConnectionException
      */
-    private function transactions(): TransactionManager
+    public function transactions(): TransactionManager
     {
         return $this->transactions ??= new PdoTransactionManager(
             $this->pdo(),
@@ -92,55 +91,8 @@ final class PdoConnection implements Connection
     }
 
     /**
-     * @throws ConnectionException
-     * @throws TransactionException
-     */
-    public function beginTransaction(): void
-    {
-        $this->transactions()->begin();
-    }
-
-    /**
-     * @throws ConnectionException
-     * @throws TransactionException
-     */
-    public function commit(): void
-    {
-        $this->transactions()->commit();
-    }
-
-    /**
-     * @throws ConnectionException
-     * @throws TransactionException
-     */
-    public function rollback(): void
-    {
-        $this->transactions()->rollback();
-    }
-
-    public function inTransaction(): bool
-    {
-        return $this->transactions?->inTransaction() ?? false;
-    }
-
-    /**
-     * @template T
-     *
-     * @param callable(Connection): T $callback
-     *
-     * @return T
-     *
-     * @throws ConnectionException
-     * @throws Throwable
-     */
-    public function transaction(callable $callback): mixed
-    {
-        return $this->transactions()->run(fn() => $callback($this));
-    }
-
-    /**
      * @throws QueryException
-     * @throws Throwable
+     * @throws ConnectionException
      */
     public function lastInsertId(?string $sequence = null): ?string
     {
@@ -163,7 +115,7 @@ final class PdoConnection implements Connection
      */
     public function disconnect(): void
     {
-        if ($this->inTransaction()) {
+        if ($this->transactions !== null && $this->transactions->inTransaction()) {
             throw new TransactionException(
                 'Cannot disconnect while a transaction is active.',
                 context: $this->context(Operation::Disconnect),
