@@ -16,6 +16,7 @@ final readonly class PdoResult implements Result
 
     public function first(): ?array
     {
+        /** @var array<string, mixed>|false $row */
         $row = $this->statement->fetch(PDO::FETCH_ASSOC);
 
         return $row === false ? null : $row;
@@ -24,7 +25,9 @@ final readonly class PdoResult implements Result
     public function all(): array
     {
         /** @var list<array<string, mixed>> $rows */
-        return $this->statement->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $this->statement->fetchAll(PDO::FETCH_ASSOC);
+
+        return $rows;
     }
 
     public function column(int|string $column = 0): array
@@ -43,17 +46,25 @@ final readonly class PdoResult implements Result
 
     public function iterate(): iterable
     {
-        while (($row = $this->statement->fetch(PDO::FETCH_ASSOC)) !== false) {
+        while (($row = $this->first()) !== null) {
             yield $row;
         }
     }
 
+    /**
+     * @return list<mixed>
+     */
     private function fetchColumnByInt(int $column): array
     {
         /** @var list<mixed> $values */
-        return $this->statement->fetchAll(PDO::FETCH_COLUMN, $column);
+        $values = $this->statement->fetchAll(PDO::FETCH_COLUMN, $column);
+
+        return $values;
     }
 
+    /**
+     * @return list<mixed>
+     */
     private function fetchColumnByName(string $column): array
     {
         $values = [];
