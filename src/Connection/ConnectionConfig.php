@@ -4,4 +4,18 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Connection;
 
-class ConnectionConfig {}
+use Dirthara\Database\Connection\Driver\DriverName;
+
+class ConnectionConfig
+{
+    public function __construct(
+        public DriverName $driver,
+        public ?string $host = null,
+        public ?int $port = null,
+        public ?string $database = null,
+        public ?string $username = null,
+        public ?string $password = null,
+        public ?string $charset = null,
+        public array $options = [],
+    ) {}
+}

@@ -5,7 +5,7 @@ extends from `Exception`. All exceptions thrown by the Dirthara package extend f
 
 The package base exception accepts an optional `array<string, mixed> $context` as
 the fourth constructor argument, after message, code, and previous. It exposes
-this data through `getContext(): array` and stores it in a readonly property.
+this data through `getContext(): array` and stores it in a protected property.
 Specialized exceptions inherit this behavior.
 
 Exceptions carry data without logging themselves or depending on a logger package.

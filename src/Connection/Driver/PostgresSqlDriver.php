@@ -7,22 +7,16 @@ namespace Dirthara\Database\Connection\Driver;
 use PDO;
 use Dirthara\Database\Connection\ConnectionConfig;
 
-class MySqlDriver implements Driver
+class PostgresSqlDriver implements Driver
 {
     public function name(): DriverName
     {
-        return DriverName::MySql;
+        return DriverName::PostgresSql;
     }
 
     public function connect(ConnectionConfig $config): PDO
     {
-        $dsn = sprintf(
-            'mysql:host=%s;port=%d;dbname=%s;charset=%s',
-            $config->host,
-            $config->port ?? 3306,
-            $config->database,
-            $config->charset ?? 'utf8mb4',
-        );
+        $dsn = sprintf('pgsql:host=%s;port=%d;dbname=%s', $config->host, $config->port ?? 5432, $config->database);
 
         return new PDO($dsn, $config->username, $config->password, $this->options($config));
     }
