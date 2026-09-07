@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Dirthara\Database\Connection\Driver;
 
 use PDO;
-use Dirthara\Database\Connection\ConnectionConfig;
+use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 use Dirthara\Database\Connection\Exceptions\ConnectionException;
 
-class SQLiteDriver implements Driver
+class SQLiteDriver extends PdoDriver
 {
     public function name(): DriverName
     {
@@ -18,21 +18,19 @@ class SQLiteDriver implements Driver
     /**
      * @throws ConnectionException
      */
-    public function connect(ConnectionConfig $config): PDO
+    protected function createConnection(ConnectionConfig $config): PDO
     {
+        $this->rejectCharset($config);
+
         $database = $config->database;
 
         if ($database === null) {
-            throw new ConnectionException('SQLite requires an explicit database value.', context: [
-                'driver' => $config->driver->value,
-            ]);
+            throw new ConnectionException(
+                'SQLite requires an explicit database value.',
+                context: $this->context($config),
+            );
         }
 
         return new PDO('sqlite:' . $database, options: $this->options($config));
-    }
-
-    private function options(ConnectionConfig $config): array
-    {
-        return $config->options;
     }
 }

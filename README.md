@@ -1,5 +1,71 @@
 # Dirthara Database
 
+## Usage
+
+A `ConnectionConfig` describes one named connection. A `ConnectionFactory` turns
+it into a `Connection` using a registered driver, and a `ConnectionManager`
+resolves and caches connections by name.
+
+Each driver is constructed with the `TransactionGrammar` its database
+understands. MySQL, PostgreSQL, and SQLite take `StandardTransactionGrammar`;
+SQL Server needs `SqlServerTransactionGrammar`, which spells savepoints with
+`SAVE TRANSACTION` and cannot release them. A grammar names its savepoints with
+a `SavepointPrefix`, which defaults to `dirthara`.
+
+```php
+$grammar = new StandardTransactionGrammar(new SavepointPrefix());
+
+$manager = new ConnectionManager(
+    new ConnectionFactory([new MySqlDriver($grammar), new SQLiteDriver($grammar)]),
+    [
+        new ConnectionConfig(
+            driver: DriverName::MySql,
+            name: 'primary',
+            host: 'mysql',
+            database: 'app',
+            username: 'app',
+            password: $password,
+        ),
+    ],
+    default: 'primary',
+);
+
+$connection = $manager->connection();
+```
+
+Parameters are bound by position or by name. A positional list is keyed from
+zero; the connection maps it onto the placeholders, which PDO counts from one.
+
+```php
+$rows = $connection->execute('SELECT * FROM users WHERE role = ?', [1, 'admin'])->all();
+$rows = $connection->execute('SELECT * FROM users WHERE role = :role', ['role' => 'admin'])->all();
+```
+
+A `Result` reads the rows once, moving forward only, so one result should be
+read with one method. `first()` returns the next row or null, `all()` the
+remaining rows, `column()` one column by position or name, and `iterate()`
+yields rows without buffering them.
+
+`transaction()` commits when the callback returns and rolls back when it throws,
+rethrowing the original exception. Nested calls use savepoints. An exception
+raised by the rollback itself never replaces the exception that caused it; it is
+recorded under `rollback_failure` in the context instead.
+
+```php
+$connection->transaction(function (Connection $connection): void {
+    $connection->execute('INSERT INTO users (name) VALUES (?)', ['Ada']);
+});
+```
+
+Every exception extends `DatabaseException` and carries diagnostic context for a
+PSR-3 logger, including the connection name, driver, and operation. Credentials
+are never part of it.
+
+Two settings are driver-specific: `charset` is applied through the DSN on MySQL
+and through `client_encoding` on PostgreSQL; SQLite and SQL Server reject it
+rather than accept and ignore it. `options` are PDO attributes keyed by the
+`PDO::ATTR_*` constants, and they override the defaults the drivers set.
+
 ## Docker development environment
 
 Requires Docker with Docker Compose. The development image provides PHP 8.5 CLI,
@@ -29,7 +95,7 @@ docker compose exec php php --ri PDO
 docker compose exec php composer --version
 ```
 
-Once a `composer.json` is added, install dependencies with:
+Install dependencies with:
 
 ```sh
 docker compose exec php composer install
@@ -41,8 +107,22 @@ Stop and remove the development container when finished:
 docker compose down
 ```
 
-PDO is the shared database interface. Database-specific PDO drivers and database
-services will be added when integration tests need them.
+PDO is the shared database interface. The base image provides `pdo_sqlite`, which
+the test suite uses. Driver extensions and database services for MySQL,
+PostgreSQL, and SQL Server will be added when integration tests need them.
+
+## Tests
+
+Run the suite through Composer in the PHP container:
+
+```sh
+docker compose exec php composer test
+```
+
+The suite runs against SQLite in memory, so it needs no database service. Tests
+that cover the MySQL, PostgreSQL, and SQL Server drivers assert on
+configuration handling and DSN validation, which happen before PDO is asked to
+connect.
 
 ## Mago
 
@@ -58,6 +138,9 @@ linter and static analyzer, and checks architecture rules with `mago guard`.
 Every check runs even if an earlier check fails, and the command fails if any
 check fails. It does not modify files. Architecture rules apply when configured
 in `mago.toml`.
+
+`composer lint` reports lint violations without touching files. `composer
+lint-fix` applies the fixes it can, including the potentially unsafe ones.
 
 Mago 1.47.3 runs through its official Docker image. Only Docker Compose is needed
 on the host, and the PHP container does not need to be running. The image is

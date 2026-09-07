@@ -6,20 +6,20 @@ namespace Dirthara\Database\Connection\Transaction;
 
 use function sprintf;
 
-class StandardTransactionGrammar extends PrefixedTransactionGrammar
+class SqlServerTransactionGrammar extends PrefixedTransactionGrammar
 {
     public function createSavepoint(string $name): string
     {
-        return sprintf('SAVEPOINT %s', $name);
+        return sprintf('SAVE TRANSACTION %s', $name);
     }
 
     public function releaseSavepoint(string $name): ?string
     {
-        return sprintf('RELEASE SAVEPOINT %s', $name);
+        return null;
     }
 
     public function rollbackToSavepoint(string $name): string
     {
-        return sprintf('ROLLBACK TO SAVEPOINT %s', $name);
+        return sprintf('ROLLBACK TRANSACTION %s', $name);
     }
 }

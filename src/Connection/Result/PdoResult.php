@@ -6,7 +6,10 @@ namespace Dirthara\Database\Connection\Result;
 
 use PDO;
 use PDOStatement;
-use InvalidArgumentException;
+use Dirthara\Database\Connection\Exceptions\ResultException;
+
+use function is_int;
+use function is_array;
 
 final readonly class PdoResult implements Result
 {
@@ -14,6 +17,9 @@ final readonly class PdoResult implements Result
         private PDOStatement $statement,
     ) {}
 
+    /**
+     * @return array<string, mixed>|null
+     */
     public function first(): ?array
     {
         /** @var array<string, mixed>|false $row */
@@ -22,6 +28,9 @@ final readonly class PdoResult implements Result
         return $row === false ? null : $row;
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
     public function all(): array
     {
         // Keep the variable so the analyzer can apply the PDO fetch-mode type.
@@ -32,13 +41,21 @@ final readonly class PdoResult implements Result
         return $rows;
     }
 
+    /**
+     * @return list<mixed>
+     *
+     * @throws ResultException
+     */
     public function column(int|string $column = 0): array
     {
-        if (is_int($column)) {
-            return $this->fetchColumnByInt($column);
-        }
+        $index = is_int($column) ? $this->assertPosition($column) : $this->resolvePosition($column);
 
-        return $this->fetchColumnByName($column);
+        // Keep the variable so the analyzer can apply the PDO fetch-mode type.
+        /** @var list<mixed> $values */
+        // @mago-expect lint:inline-variable-return
+        $values = $this->statement->fetchAll(PDO::FETCH_COLUMN, $index);
+
+        return $values;
     }
 
     public function affectedRows(): int
@@ -46,6 +63,9 @@ final readonly class PdoResult implements Result
         return $this->statement->rowCount();
     }
 
+    /**
+     * @return iterable<array<string, mixed>>
+     */
     public function iterate(): iterable
     {
         while (($row = $this->first()) !== null) {
@@ -54,33 +74,53 @@ final readonly class PdoResult implements Result
     }
 
     /**
-     * @return list<mixed>
+     * @throws ResultException
      */
-    private function fetchColumnByInt(int $column): array
+    private function assertPosition(int $column): int
     {
-        // Keep the variable so the analyzer can apply the PDO fetch-mode type.
-        /** @var list<mixed> $values */
-        // @mago-expect lint:inline-variable-return
-        $values = $this->statement->fetchAll(PDO::FETCH_COLUMN, $column);
+        if ($column < 0 || $column >= $this->statement->columnCount()) {
+            throw ResultException::unknownColumn($column, $this->columnNames());
+        }
 
-        return $values;
+        return $column;
     }
 
     /**
-     * @return list<mixed>
+     * @throws ResultException
      */
-    private function fetchColumnByName(string $column): array
+    private function resolvePosition(string $column): int
     {
-        $values = [];
+        $names = $this->columnNames();
 
-        foreach ($this->iterate() as $row) {
-            if (!array_key_exists($column, $row)) {
-                throw new InvalidArgumentException(sprintf('Column %s does not exist in the result.', $column));
-            }
-
-            $values[] = $row[$column];
+        if ($names === [] && $this->statement->columnCount() > 0) {
+            throw ResultException::columnMetadataUnavailable($column);
         }
 
-        return $values;
+        foreach ($names as $index => $name) {
+            if ($name === $column) {
+                return $index;
+            }
+        }
+
+        throw ResultException::unknownColumn($column, $names);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function columnNames(): array
+    {
+        $names = [];
+        $count = $this->statement->columnCount();
+
+        for ($index = 0; $index < $count; $index++) {
+            $meta = $this->statement->getColumnMeta($index);
+
+            if (is_array($meta)) {
+                $names[$index] = $meta['name'];
+            }
+        }
+
+        return $names;
     }
 }

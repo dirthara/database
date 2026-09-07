@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Dirthara\Database\Connection;
 
 use Dirthara\Database\Connection\Driver\Driver;
+use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 use Dirthara\Database\Connection\Exceptions\ConnectionException;
-use Dirthara\Database\Connection\Transaction\TransactionGrammar;
+
+use function array_key_exists;
 
 final readonly class ConnectionFactory
 {
@@ -17,15 +19,23 @@ final readonly class ConnectionFactory
 
     /**
      * @param iterable<Driver> $drivers
+     *
+     * @throws ConnectionException
      */
-    public function __construct(
-        iterable $drivers,
-        private TransactionGrammar $transactionGrammar,
-    ) {
+    public function __construct(iterable $drivers)
+    {
         $registeredDrivers = [];
 
         foreach ($drivers as $driver) {
-            $registeredDrivers[$driver->name()->value] = $driver;
+            $name = $driver->name()->value;
+
+            if (array_key_exists($name, $registeredDrivers)) {
+                throw new ConnectionException('The database driver is registered more than once.', context: [
+                    'driver' => $name,
+                ]);
+            }
+
+            $registeredDrivers[$name] = $driver;
         }
 
         $this->drivers = $registeredDrivers;
@@ -36,11 +46,11 @@ final readonly class ConnectionFactory
      */
     public function create(ConnectionConfig $config): Connection
     {
-        $driver =
-            $this->drivers[$config->driver->value] ?? throw new ConnectionException('The requested database driver is not registered.', context: [
-                'driver' => $config->driver->value,
-            ]);
+        $driver = $this->drivers[$config->driver->value] ?? throw new ConnectionException(
+            'The requested database driver is not registered.',
+            context: $config->diagnostics(),
+        );
 
-        return new PdoConnection(config: $config, driver: $driver, transactionGrammar: $this->transactionGrammar);
+        return new PdoConnection(config: $config, driver: $driver);
     }
 }

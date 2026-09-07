@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Connection\Result;
 
+use Dirthara\Database\Connection\Exceptions\ResultException;
+
 interface Result
 {
     /**
@@ -18,6 +20,8 @@ interface Result
 
     /**
      * @return list<mixed>
+     *
+     * @throws ResultException
      */
     public function column(int|string $column = 0): array;
 

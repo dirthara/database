@@ -6,7 +6,15 @@ namespace Dirthara\Database\Connection\Transaction;
 
 use PDO;
 use Throwable;
+use PDOException;
+use Dirthara\Database\Connection\Operation;
+use Dirthara\Database\Connection\Pdo\PdoError;
+use Dirthara\Database\Exceptions\DatabaseException;
+use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 use Dirthara\Database\Connection\Exceptions\TransactionException;
+
+use function sprintf;
+use function array_merge;
 
 final class PdoTransactionManager implements TransactionManager
 {
@@ -15,18 +23,22 @@ final class PdoTransactionManager implements TransactionManager
     public function __construct(
         private readonly PDO $pdo,
         private readonly TransactionGrammar $grammar,
+        private readonly ConnectionConfig $config,
     ) {}
 
+    /**
+     * @throws TransactionException
+     */
     public function begin(): void
     {
         if ($this->level === 0) {
-            $this->pdo->beginTransaction();
-            $this->level++;
+            $this->attempt(static fn(PDO $pdo): bool => $pdo->beginTransaction(), Operation::Begin);
+            $this->level = 1;
 
             return;
         }
 
-        $this->pdo->exec($this->grammar->createSavepoint($this->savepointName($this->level)));
+        $this->exec($this->grammar->createSavepoint($this->grammar->savepointName($this->level)), Operation::Savepoint);
         $this->level++;
     }
 
@@ -35,21 +47,22 @@ final class PdoTransactionManager implements TransactionManager
      */
     public function commit(): void
     {
-        $this->ensureActiveTransaction();
+        $this->ensureActiveTransaction(Operation::Commit);
 
-        $this->level--;
-
-        if ($this->level === 0) {
-            $this->pdo->commit();
+        if ($this->level === 1) {
+            $this->attempt(static fn(PDO $pdo): bool => $pdo->commit(), Operation::Commit);
+            $this->level = 0;
 
             return;
         }
 
-        $sql = $this->grammar->releaseSavepoint($this->savepointName($this->level));
+        $sql = $this->grammar->releaseSavepoint($this->grammar->savepointName($this->level - 1));
 
         if ($sql !== null) {
-            $this->pdo->exec($sql);
+            $this->exec($sql, Operation::ReleaseSavepoint);
         }
+
+        $this->level--;
     }
 
     /**
@@ -57,17 +70,21 @@ final class PdoTransactionManager implements TransactionManager
      */
     public function rollback(): void
     {
-        $this->ensureActiveTransaction();
+        $this->ensureActiveTransaction(Operation::Rollback);
 
-        $this->level--;
-
-        if ($this->level === 0) {
-            $this->pdo->rollBack();
+        if ($this->level === 1) {
+            $this->attempt(static fn(PDO $pdo): bool => $pdo->rollBack(), Operation::Rollback);
+            $this->level = 0;
 
             return;
         }
 
-        $this->pdo->exec($this->grammar->rollbackToSavepoint($this->savepointName($this->level)));
+        $this->exec(
+            $this->grammar->rollbackToSavepoint($this->grammar->savepointName($this->level - 1)),
+            Operation::RollbackToSavepoint,
+        );
+
+        $this->level--;
     }
 
     public function inTransaction(): bool
@@ -91,33 +108,94 @@ final class PdoTransactionManager implements TransactionManager
      */
     public function run(callable $callback): mixed
     {
+        $enclosingLevel = $this->level;
+
         $this->begin();
 
         try {
             $result = $callback();
-
-            $this->commit();
-
-            return $result;
+        } catch (DatabaseException $exception) {
+            throw $exception->addContext($this->abort($enclosingLevel));
         } catch (Throwable $exception) {
-            $this->rollback();
+            $this->abort($enclosingLevel);
 
             throw $exception;
         }
+
+        $this->commit();
+
+        return $result;
     }
 
-    private function savepointName(int $level): string
+    /**
+     * @return array<string, mixed>
+     */
+    private function abort(int $enclosingLevel): array
     {
-        return sprintf('dirthara_%d', $level); // @todo the name dirthara should be configurable
+        try {
+            $this->rollback();
+
+            return [];
+        } catch (Throwable $failure) {
+            return ['rollback_failure' => $failure->getMessage()];
+        } finally {
+            $this->level = $enclosingLevel;
+        }
+    }
+
+    /**
+     * @param callable(PDO): bool $action
+     *
+     * @throws TransactionException
+     */
+    private function attempt(callable $action, Operation $operation): void
+    {
+        try {
+            $succeeded = $action($this->pdo);
+        } catch (PDOException $exception) {
+            throw new TransactionException(
+                message: $exception->getMessage(),
+                code: PdoError::code($exception),
+                previous: $exception,
+                context: $this->context($operation, $exception),
+            );
+        }
+
+        if (!$succeeded) {
+            throw new TransactionException(
+                sprintf('The database refused the %s operation.', $operation->value),
+                context: $this->context($operation),
+            );
+        }
     }
 
     /**
      * @throws TransactionException
      */
-    private function ensureActiveTransaction(): void
+    private function exec(string $sql, Operation $operation): void
+    {
+        $this->attempt(static fn(PDO $pdo): bool => $pdo->exec($sql) !== false, $operation);
+    }
+
+    /**
+     * @throws TransactionException
+     */
+    private function ensureActiveTransaction(Operation $operation): void
     {
         if (!$this->inTransaction()) {
-            throw new TransactionException('There is no active transaction.');
+            throw new TransactionException('There is no active transaction.', context: $this->context($operation));
         }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function context(Operation $operation, ?PDOException $cause = null): array
+    {
+        return array_merge(
+            $this->config->diagnostics(),
+            ['operation' => $operation->value],
+            PdoError::describe($cause),
+        );
     }
 }

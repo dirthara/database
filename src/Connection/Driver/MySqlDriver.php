@@ -5,13 +5,18 @@ declare(strict_types=1);
 namespace Dirthara\Database\Connection\Driver;
 
 use PDO;
-use Dirthara\Database\Connection\ConnectionConfig;
+use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 use Dirthara\Database\Connection\Exceptions\ConnectionException;
 
-use function trim;
+use function sprintf;
+use function array_replace;
 
-class MySqlDriver implements Driver
+class MySqlDriver extends PdoDriver
 {
+    private const int DEFAULT_PORT = 3306;
+
+    private const string DEFAULT_CHARSET = 'utf8mb4';
+
     public function name(): DriverName
     {
         return DriverName::MySql;
@@ -20,32 +25,31 @@ class MySqlDriver implements Driver
     /**
      * @throws ConnectionException
      */
-    public function connect(ConnectionConfig $config): PDO
+    protected function createConnection(ConnectionConfig $config): PDO
     {
-        $host = $config->host;
+        $charset = $this->charset($config);
 
-        if ($host === null || trim($host) === '') {
-            throw new ConnectionException('MySQL requires a nonempty host.', context: [
-                'driver' => $config->driver->value,
-            ]);
-        }
+        $dsn = sprintf(
+            'mysql:host=%s;port=%d;charset=%s',
+            $this->requireHost($config)->value,
+            $config->port ?? self::DEFAULT_PORT,
+            $charset === null ? self::DEFAULT_CHARSET : $charset->value,
+        );
 
-        $dsn = sprintf('mysql:host=%s;port=%d;charset=%s', $host, $config->port ?? 3306, $config->charset ?? 'utf8mb4');
+        $database = $this->optionalDatabase($config);
 
-        $database = $config->database;
-
-        if ($database !== null && trim($database) !== '') {
-            $dsn .= ';dbname=' . $database;
+        if ($database !== null) {
+            $dsn .= ';dbname=' . $database->value;
         }
 
         return new PDO($dsn, $config->username, $config->password, $this->options($config));
     }
 
-    private function options(ConnectionConfig $config): array
+    /**
+     * @return array<int, mixed>
+     */
+    protected function options(ConnectionConfig $config): array
     {
-        return array_merge([
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ], $config->options);
+        return array_replace([PDO::ATTR_EMULATE_PREPARES => false], parent::options($config));
     }
 }

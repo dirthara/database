@@ -5,12 +5,10 @@ declare(strict_types=1);
 namespace Dirthara\Database\Connection\Driver;
 
 use PDO;
-use Dirthara\Database\Connection\ConnectionConfig;
+use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 use Dirthara\Database\Connection\Exceptions\ConnectionException;
 
-use function trim;
-
-class SqlServerDriver implements Driver
+class SqlServerDriver extends PdoDriver
 {
     public function name(): DriverName
     {
@@ -20,28 +18,24 @@ class SqlServerDriver implements Driver
     /**
      * @throws ConnectionException
      */
-    public function connect(ConnectionConfig $config): PDO
+    protected function createConnection(ConnectionConfig $config): PDO
     {
-        $host = $config->host;
+        $this->rejectCharset($config);
 
-        if ($host === null || trim($host) === '') {
-            throw new ConnectionException('SQL Server requires a nonempty host.', context: [
-                'driver' => $config->driver->value,
-            ]);
+        $server = $this->requireHost($config)->value;
+
+        if ($config->port !== null) {
+            $server .= ',' . $config->port;
         }
 
-        $dsn = 'sqlsrv:Server=' . $host;
-        $database = $config->database;
+        $dsn = 'sqlsrv:Server=' . $server;
 
-        if ($database !== null && trim($database) !== '') {
-            $dsn .= ';Database=' . $database;
+        $database = $this->optionalDatabase($config);
+
+        if ($database !== null) {
+            $dsn .= ';Database=' . $database->value;
         }
 
-        return new PDO($dsn, options: $this->options($config));
-    }
-
-    private function options(ConnectionConfig $config): array
-    {
-        return $config->options;
+        return new PDO($dsn, $config->username, $config->password, $this->options($config));
     }
 }

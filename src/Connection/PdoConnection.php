@@ -5,16 +5,25 @@ declare(strict_types=1);
 namespace Dirthara\Database\Connection;
 
 use PDO;
+use Throwable;
 use PDOException;
 use PDOStatement;
+use Dirthara\Database\Connection\Pdo\PdoError;
 use Dirthara\Database\Connection\Driver\Driver;
 use Dirthara\Database\Connection\Result\Result;
 use Dirthara\Database\Connection\Result\PdoResult;
 use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Connection\Exceptions\QueryException;
-use Dirthara\Database\Connection\Transaction\TransactionGrammar;
+use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
+use Dirthara\Database\Connection\Exceptions\ConnectionException;
 use Dirthara\Database\Connection\Transaction\TransactionManager;
+use Dirthara\Database\Connection\Exceptions\TransactionException;
 use Dirthara\Database\Connection\Transaction\PdoTransactionManager;
+
+use function is_int;
+use function is_bool;
+use function is_null;
+use function array_merge;
 
 final class PdoConnection implements Connection
 {
@@ -24,56 +33,86 @@ final class PdoConnection implements Connection
     public function __construct(
         private readonly ConnectionConfig $config,
         private readonly Driver $driver,
-        private readonly TransactionGrammar $transactionGrammar,
     ) {}
 
+    /**
+     * @throws ConnectionException
+     */
     private function pdo(): PDO
     {
         return $this->pdo ??= $this->driver->connect($this->config);
     }
 
+    /**
+     * @throws ConnectionException
+     */
     private function transactions(): TransactionManager
     {
-        return $this->transactions ??= new PdoTransactionManager($this->pdo(), $this->transactionGrammar);
+        return $this->transactions ??= new PdoTransactionManager(
+            $this->pdo(),
+            $this->driver->transactionGrammar(),
+            $this->config,
+        );
     }
 
     /**
      * @param array<int|string, scalar|null> $parameters
      *
      * @throws QueryException
+     * @throws ConnectionException
      */
-    public function execute(string $query, array $parameters): Result
+    public function execute(string $query, array $parameters = []): Result
     {
         try {
             $statement = $this->pdo()->prepare($query);
 
             if ($statement === false) {
-                throw new QueryException('Failed to prepare the query.', context: [
-                    'operation' => 'prepare',
+                throw new QueryException('Failed to prepare the query.', context: $this->context(Operation::Prepare, [
                     'query' => $query,
-                ]);
+                ]));
             }
 
             $this->bindParameters($statement, $parameters);
 
-            $statement->execute();
+            if ($statement->execute() === false) {
+                throw new QueryException('Failed to execute the query.', context: $this->context(Operation::Execute, [
+                    'query' => $query,
+                ]));
+            }
 
             return new PdoResult($statement);
         } catch (PDOException $exception) {
-            throw QueryException::fromPdo(exception: $exception, query: $query);
+            throw new QueryException(
+                message: $exception->getMessage(),
+                code: PdoError::code($exception),
+                previous: $exception,
+                context: $this->context(Operation::Execute, ['query' => $query], $exception),
+            );
         }
     }
 
+    /**
+     * @throws ConnectionException
+     * @throws TransactionException
+     */
     public function beginTransaction(): void
     {
         $this->transactions()->begin();
     }
 
+    /**
+     * @throws ConnectionException
+     * @throws TransactionException
+     */
     public function commit(): void
     {
         $this->transactions()->commit();
     }
 
+    /**
+     * @throws ConnectionException
+     * @throws TransactionException
+     */
     public function rollback(): void
     {
         $this->transactions()->rollback();
@@ -90,10 +129,74 @@ final class PdoConnection implements Connection
      * @param callable(Connection): T $callback
      *
      * @return T
+     *
+     * @throws ConnectionException
+     * @throws Throwable
      */
     public function transaction(callable $callback): mixed
     {
         return $this->transactions()->run(fn() => $callback($this));
+    }
+
+    /**
+     * @throws QueryException
+     * @throws Throwable
+     */
+    public function lastInsertId(?string $sequence = null): ?string
+    {
+        try {
+            $id = $this->pdo()->lastInsertId($sequence);
+        } catch (PDOException $exception) {
+            throw new QueryException(
+                message: $exception->getMessage(),
+                code: PdoError::code($exception),
+                previous: $exception,
+                context: $this->context(Operation::LastInsertId, cause: $exception),
+            );
+        }
+
+        return $id === false ? null : $id;
+    }
+
+    /**
+     * @throws TransactionException
+     */
+    public function disconnect(): void
+    {
+        if ($this->inTransaction()) {
+            throw new TransactionException(
+                'Cannot disconnect while a transaction is active.',
+                context: $this->context(Operation::Disconnect),
+            );
+        }
+
+        $this->transactions = null;
+        $this->pdo = null;
+    }
+
+    public function name(): string
+    {
+        return $this->config->name;
+    }
+
+    public function driver(): DriverName
+    {
+        return $this->driver->name();
+    }
+
+    /**
+     * @param array<string, mixed> $extra
+     *
+     * @return array<string, mixed>
+     */
+    private function context(Operation $operation, array $extra = [], ?PDOException $cause = null): array
+    {
+        return array_merge(
+            $this->config->diagnostics(),
+            ['operation' => $operation->value],
+            $extra,
+            PdoError::describe($cause),
+        );
     }
 
     /**
@@ -102,7 +205,7 @@ final class PdoConnection implements Connection
     private function bindParameters(PDOStatement $statement, array $parameters): void
     {
         foreach ($parameters as $key => $value) {
-            $statement->bindValue($key, $value, $this->inferParameterType($value));
+            $statement->bindValue(is_int($key) ? $key + 1 : $key, $value, $this->inferParameterType($value));
         }
     }
 
@@ -114,16 +217,5 @@ final class PdoConnection implements Connection
             is_null($value) => PDO::PARAM_NULL,
             default => PDO::PARAM_STR,
         };
-    }
-
-    public function disconnect(): void
-    {
-        $this->transactions = null;
-        $this->pdo = null;
-    }
-
-    public function driver(): DriverName
-    {
-        return $this->driver->name();
     }
 }

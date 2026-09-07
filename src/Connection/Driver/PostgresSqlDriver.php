@@ -5,13 +5,15 @@ declare(strict_types=1);
 namespace Dirthara\Database\Connection\Driver;
 
 use PDO;
-use Dirthara\Database\Connection\ConnectionConfig;
+use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 use Dirthara\Database\Connection\Exceptions\ConnectionException;
 
-use function trim;
+use function sprintf;
 
-class PostgresSqlDriver implements Driver
+class PostgresSqlDriver extends PdoDriver
 {
+    private const int DEFAULT_PORT = 5432;
+
     public function name(): DriverName
     {
         return DriverName::PostgresSql;
@@ -20,31 +22,28 @@ class PostgresSqlDriver implements Driver
     /**
      * @throws ConnectionException
      */
-    public function connect(ConnectionConfig $config): PDO
+    protected function createConnection(ConnectionConfig $config): PDO
     {
-        $host = $config->host;
+        $dsn = sprintf(
+            'pgsql:host=%s;port=%d',
+            $this->requireHost($config)->value,
+            $config->port ?? self::DEFAULT_PORT,
+        );
 
-        if ($host === null || trim($host) === '') {
-            throw new ConnectionException('PostgreSQL requires a nonempty host.', context: [
-                'driver' => $config->driver->value,
-            ]);
+        $database = $this->optionalDatabase($config);
+
+        if ($database !== null) {
+            $dsn .= ';dbname=' . $database->value;
         }
 
-        $dsn = sprintf('pgsql:host=%s;port=%d', $host, $config->port ?? 5432);
-        $database = $config->database;
+        $pdo = new PDO($dsn, $config->username, $config->password, $this->options($config));
 
-        if ($database !== null && trim($database) !== '') {
-            $dsn .= ';dbname=' . $database;
+        $charset = $this->charset($config);
+
+        if ($charset !== null) {
+            $pdo->exec(sprintf("SET client_encoding TO '%s'", $charset->value));
         }
 
-        return new PDO($dsn, $config->username, $config->password, $this->options($config));
-    }
-
-    private function options(ConnectionConfig $config): array
-    {
-        return array_merge([
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ], $config->options);
+        return $pdo;
     }
 }
