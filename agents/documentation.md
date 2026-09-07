@@ -6,14 +6,18 @@ Documentation lives in two places with no overlap between them.
 
 The root README covers the repository, not the library. It contains, in order:
 
-1. A short description of the package.
-2. How to install the package with Composer, and its requirements.
-3. How to set up the local development environment.
-4. How to run the tests.
-5. How to run the linters, formatter, and static analyzer, and the coverage gate.
-6. Where the contributing and branching rules live, linking to `CONTRIBUTING.md`.
-7. Where to report a vulnerability, linking to `SECURITY.md`.
-8. The license, linking to `LICENSE`.
+1. The logo, centred above the title, linking to `logo-no-bg.png` by relative
+   path. A relative path survives the branch-per-version strategy; an absolute
+   `raw.githubusercontent.com` URL would name one branch and be wrong on every
+   other.
+2. A short description of the package.
+3. How to install the package with Composer, and its requirements.
+4. How to set up the local development environment.
+5. How to run the tests.
+6. How to run the linters, formatter, and static analyzer, and the coverage gate.
+7. Where the contributing and branching rules live, linking to `CONTRIBUTING.md`.
+8. Where to report a vulnerability, linking to `SECURITY.md`.
+9. The license, linking to `LICENSE`.
 
 Usage, options, and API documentation do not belong in the README. It links to
 `docs` instead.

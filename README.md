@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo-no-bg.png" alt="Dirthara" width="480">
+</p>
+
 # Dirthara Database
 
 Database connections for the Dirthara framework. A thin layer over PDO that
