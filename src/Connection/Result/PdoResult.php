@@ -24,8 +24,12 @@ final readonly class PdoResult implements Result
 
     public function all(): array
     {
+        // Keep the variable so the analyzer can apply the PDO fetch-mode type.
         /** @var list<array<string, mixed>> $rows */
-        return $this->statement->fetchAll(PDO::FETCH_ASSOC);
+        // @mago-expect lint:inline-variable-return
+        $rows = $this->statement->fetchAll(PDO::FETCH_ASSOC);
+
+        return $rows;
     }
 
     public function column(int|string $column = 0): array
@@ -54,8 +58,12 @@ final readonly class PdoResult implements Result
      */
     private function fetchColumnByInt(int $column): array
     {
+        // Keep the variable so the analyzer can apply the PDO fetch-mode type.
         /** @var list<mixed> $values */
-        return $this->statement->fetchAll(PDO::FETCH_COLUMN, $column);
+        // @mago-expect lint:inline-variable-return
+        $values = $this->statement->fetchAll(PDO::FETCH_COLUMN, $column);
+
+        return $values;
     }
 
     /**
