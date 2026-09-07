@@ -1,0 +1,10 @@
+{
+  "label": "Queries",
+  "position": 5,
+  "collapsed": false,
+  "link": {
+    "type": "generated-index",
+    "title": "Queries",
+    "description": "Run a query with bound parameters and read what it returned."
+  }
+}

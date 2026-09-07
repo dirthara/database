@@ -1,93 +1,20 @@
 # Dirthara Database
 
-## Usage
+Database connections for the Dirthara framework. A thin layer over PDO that
+gives you named connections, parameter binding, forward-only result sets, and
+nested transactions backed by savepoints.
 
-A `ConnectionConfig` describes one named connection. A `ConnectionFactory` turns
-it into a `Connection` using a registered driver, and a `ConnectionManager`
-resolves and caches connections by name.
+## Installation
 
-Each driver is constructed with the `TransactionGrammar` its database
-understands. MySQL, PostgreSQL, and SQLite take `StandardTransactionGrammar`;
-SQL Server needs `SqlServerTransactionGrammar`, which spells savepoints with
-`SAVE TRANSACTION` and cannot release them. A grammar names its savepoints with
-a `SavepointPrefix`, which defaults to `dirthara`.
-
-```php
-$grammar = new StandardTransactionGrammar(new SavepointPrefix());
-
-$manager = new ConnectionManager(
-    new ConnectionFactory([new MySqlDriver($grammar), new SQLiteDriver($grammar)]),
-    [
-        new ConnectionConfig(
-            driver: DriverName::MySql,
-            name: 'primary',
-            host: 'mysql',
-            database: 'app',
-            username: 'app',
-            password: $password,
-        ),
-    ],
-    default: 'primary',
-);
-
-$connection = $manager->connection();
+```sh
+composer require dirthara/database
 ```
 
-Parameters are bound by position or by name. A positional list is keyed from
-zero; the connection maps it onto the placeholders, which PDO counts from one.
+The package requires PHP 8.5 and the `pdo` extension. Each driver also needs its
+own PDO extension: `pdo_mysql`, `pdo_pgsql`, `pdo_sqlite`, or `pdo_sqlsrv`.
 
-```php
-$rows = $connection->execute('SELECT * FROM users WHERE role = ?', [1, 'admin'])->all();
-$rows = $connection->execute('SELECT * FROM users WHERE role = :role', ['role' => 'admin'])->all();
-```
-
-A `Result` reads the rows once, moving forward only, so one result should be
-read with one method. `first()` returns the next row or null, `all()` the
-remaining rows, `column()` one column by position or name, and `iterate()`
-yields rows without buffering them.
-
-`transaction()` commits when the callback returns and rolls back when it throws,
-rethrowing the original exception. Nested calls use savepoints. An exception
-raised by the rollback itself never replaces the exception that caused it; it is
-recorded under `rollback_failure` in the context instead.
-
-```php
-$connection->transactions()->run(function () use ($connection): void {
-    $connection->execute('INSERT INTO users (name) VALUES (?)', ['Ada']);
-});
-```
-
-`transactions()` also exposes `begin()`, `commit()`, `rollback()`,
-`inTransaction()`, and `level()` for control that does not fit a callback.
-
-Every exception extends `DatabaseException` and carries diagnostic context for a
-PSR-3 logger, including the connection name, driver, and operation. Credentials
-are never part of it.
-
-A `ConnectionMiddleware` wraps every connection the factory creates, which is
-where cross-cutting behaviour such as query logging or retrying a dropped
-connection belongs. The first entry becomes the outermost layer.
-
-```php
-final class LogQueries implements ConnectionMiddleware
-{
-    public function wrap(Connection $connection): Connection
-    {
-        return new LoggingConnection($connection, $this->logger);
-    }
-}
-
-$factory = new ConnectionFactory([new MySqlDriver($grammar)], [new LogQueries($logger)]);
-```
-
-A wrapping `Connection` has to pass itself to a `transaction()` callback instead
-of forwarding the callback unchanged. Forwarding it hands the callback the
-wrapped connection, so queries inside a transaction skip the wrapper.
-
-Two settings are driver-specific: `charset` is applied through the DSN on MySQL
-and through `client_encoding` on PostgreSQL; SQLite and SQL Server reject it
-rather than accept and ignore it. `options` are PDO attributes keyed by the
-`PDO::ATTR_*` constants, and they override the defaults the drivers set.
+Usage documentation lives in [`docs`](docs), which is published as a Docusaurus
+site by a separate package.
 
 ## Docker development environment
 
@@ -205,3 +132,13 @@ export LOCAL_UID=$(id -u) LOCAL_GID=$(id -g)
 The `mago.toml` configuration targets PHP 8.5 and the `src` and `tests` directories, with `vendor`
 available for dependency analysis. The `tools` profile keeps Mago out of the
 normal background services; explicitly running the service activates it.
+
+## Security
+
+Report vulnerabilities privately through GitHub's advisory form rather than in a
+public issue. See [SECURITY.md](SECURITY.md) for the supported versions, what is
+in scope, and what to include in a report.
+
+## License
+
+Released under the MIT License. See [LICENSE](LICENSE).

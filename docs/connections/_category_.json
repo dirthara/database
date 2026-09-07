@@ -1,0 +1,10 @@
+{
+  "label": "Connections",
+  "position": 4,
+  "collapsed": false,
+  "link": {
+    "type": "generated-index",
+    "title": "Connections",
+    "description": "Configure a connection, register the driver that opens it, resolve it by name, and wrap it in middleware."
+  }
+}
