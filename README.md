@@ -77,9 +77,9 @@ final class LogQueries implements ConnectionMiddleware
 $factory = new ConnectionFactory([new MySqlDriver($grammar)], [new LogQueries($logger)]);
 ```
 
-A decorator that wraps `transaction()` must pass itself to the callback rather
-than the connection it wraps, otherwise queries inside a transaction bypass the
-decoration.
+A wrapping `Connection` has to pass itself to a `transaction()` callback instead
+of forwarding the callback unchanged. Forwarding it hands the callback the
+wrapped connection, so queries inside a transaction skip the wrapper.
 
 Two settings are driver-specific: `charset` is applied through the DSN on MySQL
 and through `client_encoding` on PostgreSQL; SQLite and SQL Server reject it
