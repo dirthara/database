@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Connection;
 
+use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Connection\Result\Result;
 
 interface Connection
@@ -22,5 +23,5 @@ interface Connection
 
     public function disconnect(): void;
 
-    public function driver(): string;
+    public function driver(): DriverName;
 }

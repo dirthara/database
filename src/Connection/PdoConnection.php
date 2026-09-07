@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Connection;
 
+use Dirthara\Database\Connection\Driver\DriverName;
 use PDO;
 use PDOException;
 use PDOStatement;
@@ -46,39 +47,31 @@ final class PdoConnection implements Connection
         }
     }
 
-    public function transaction(callable $callback): mixed
-    {
-        // TODO: Implement transaction() method.
-    }
-
     public function beginTransaction(): void
     {
-        // TODO: Implement beginTransaction() method.
+        $this->transactions->begin();
     }
 
     public function commit(): void
     {
-        // TODO: Implement commit() method.
+        $this->transactions->commit();
     }
 
     public function rollback(): void
     {
-        // TODO: Implement rollback() method.
+        $this->transactions->rollback();
     }
 
     public function inTransaction(): bool
     {
-        // TODO: Implement inTransaction() method.
+        return $this->transactions->inTransaction();
     }
 
-    public function disconnect(): void
+    public function transaction(callable $callback): mixed
     {
-        // TODO: Implement disconnect() method.
-    }
-
-    public function driver(): string
-    {
-        // TODO: Implement driver() method.
+        return $this->transactions->run(
+            fn () => call_user_func($callback, $this)
+        );
     }
 
     private function bindParameters(PDOStatement $statement, array $parameters): void
@@ -96,5 +89,15 @@ final class PdoConnection implements Connection
             is_null($value) => PDO::PARAM_NULL,
             default => PDO::PARAM_STR,
         };
+    }
+
+    public function disconnect(): void
+    {
+        $this->pdo = null;
+    }
+
+    public function driver(): DriverName
+    {
+        return $this->driver->name();
     }
 }
