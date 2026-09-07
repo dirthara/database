@@ -72,6 +72,6 @@ your own should use the `PdoDriver` helpers rather than concatenating a DSN
 directly.
 
 Exception context is written to logs. It carries the connection name, driver,
-host, port, database, operation, SQLSTATE, and the SQL — never a password, a
-credential-bearing DSN, or a bound parameter value. Keep that split in your own
+host, port, database, operation, SQLSTATE, and the SQL — never a username, a
+password, a credential-bearing DSN, or a bound parameter value. Keep that split in your own
 drivers, middleware, and exceptions.

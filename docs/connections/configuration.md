@@ -37,7 +37,7 @@ $config = new ConnectionConfig(
 | `host` | `?string` | `null` | Server hostname or IP. Required by MySQL, PostgreSQL, and SQL Server; ignored by SQLite. |
 | `port` | `?int` | `null` | Server port. Falls back to the driver's default when null. Ignored by SQLite. |
 | `database` | `?string` | `null` | Database name. Optional for MySQL, PostgreSQL, and SQL Server, which then connect without selecting one. Required by SQLite, where it is a file path or `:memory:`. |
-| `username` | `?string` | `null` | Login user. Passed straight to PDO. Not used by SQLite. |
+| `username` | `?string` | `null` | Login user. Marked `#[SensitiveParameter]`, so it is hidden in stack traces. Not used by SQLite. |
 | `password` | `?string` | `null` | Login password. Marked `#[SensitiveParameter]`, so it is hidden in stack traces. Not used by SQLite. |
 | `charset` | `?string` | `null` | Client character set. Applied differently per driver, and rejected by two of them — see [driver-specific options](drivers.md#driver-specific-options). |
 | `options` | `array<int, mixed>` | `[]` | PDO attributes keyed by the `PDO::ATTR_*` constants. Overrides the defaults the drivers set. |
@@ -92,5 +92,10 @@ $config->diagnostics();
 ```
 
 Dumping the object with `var_dump()` shows every option, but the password is
-replaced with `[redacted]` — present or absent is visible, the value is not.
-Credentials never appear in diagnostics, exception context, or a dump.
+replaced with `[redacted]` — present or absent is visible, the value is not. The
+username is shown in full, because debugging a permission failure usually needs
+it and the driver's own error message contains it anyway.
+
+Both are marked `#[SensitiveParameter]`, which keeps them out of stack traces,
+and neither is part of `diagnostics()`, so neither reaches exception context or
+a log line.

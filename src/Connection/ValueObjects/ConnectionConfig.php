@@ -20,6 +20,7 @@ final readonly class ConnectionConfig
         public ?string $host = null,
         public ?int $port = null,
         public ?string $database = null,
+        #[SensitiveParameter]
         public ?string $username = null,
         #[SensitiveParameter]
         public ?string $password = null,
