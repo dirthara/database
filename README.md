@@ -35,6 +35,10 @@ Build the image and start the PHP container in the background:
 LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) docker compose up -d --build php
 ```
 
+This is the command CI runs too, so the suite runs against the same PHP build in
+both places. The image is PHP 8.5 by default; set `PHP_VERSION` to build another
+version, which is how CI walks its matrix.
+
 The container runs as the non-root `developer` user with your host user and group
 IDs, so files created in the mounted repository remain editable on the host.
 Both IDs default to 1000. Rebuild with the command above when they change.

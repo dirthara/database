@@ -76,7 +76,8 @@ Each release branch declares the PHP versions it supports in two places, and
 they have to agree:
 
 - the `php` constraint in `composer.json`
-- the `php` matrix in `.github/workflows/ci.yml`
+- the `php` matrix in `.github/workflows/ci.yml`, which CI passes to the image
+  as the `PHP_VERSION` build argument
 
 Because the workflow lives on the branch, every branch tests exactly the
 versions it claims to support. Dropping a PHP version in `1.0` does not change
@@ -122,7 +123,9 @@ docker compose exec php composer ci
 
 That is Mago's formatter, linter, analyzer, and architecture rules, then the
 test suite with coverage, then the coverage gate. It needs the database services,
-which `docker compose up -d php` starts and waits for. The individual
+which `docker compose up -d php` starts and waits for. CI runs the tests in this
+same image against these same services, so a green run locally means a green run
+there. The individual
 commands are in [README.md](README.md).
 
 Your pull request needs:

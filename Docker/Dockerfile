@@ -1,4 +1,6 @@
-FROM php:8.5-cli
+ARG PHP_VERSION=8.5
+
+FROM php:${PHP_VERSION}-cli
 
 COPY --from=ghcr.io/mlocati/php-extension-installer:2.11.12 /usr/bin/install-php-extensions /usr/local/bin/
 
