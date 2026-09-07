@@ -84,7 +84,17 @@ final class PdoConnection implements Connection
     private function bindParameters(PDOStatement $statement, array $parameters): void
     {
         foreach ($parameters as $key => $value) {
-            $statement->bindValue($key, $value);
+            $statement->bindValue($key, $value, $this->inferParameterType($value));
         }
+    }
+
+    private function inferParameterType(mixed $value): int
+    {
+        return match (true) {
+            is_int($value) => PDO::PARAM_INT,
+            is_bool($value) => PDO::PARAM_BOOL,
+            is_null($value) => PDO::PARAM_NULL,
+            default => PDO::PARAM_STR,
+        };
     }
 }
