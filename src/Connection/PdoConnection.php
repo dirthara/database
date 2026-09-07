@@ -42,13 +42,10 @@ final class PdoConnection implements Connection
         return $this->pdo ??= $this->driver->connect($this->config);
     }
 
-    /**
-     * @throws ConnectionException
-     */
     public function transactions(): TransactionManager
     {
         return $this->transactions ??= new PdoTransactionManager(
-            $this->pdo(),
+            $this->pdo(...),
             $this->driver->transactionGrammar(),
             $this->config,
         );

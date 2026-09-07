@@ -26,6 +26,21 @@ abstract class ConnectionTestCase extends TestCase
         );
     }
 
+    /**
+     * A connection whose database cannot be opened, so any attempt to connect fails.
+     */
+    protected function unreachable(): Connection
+    {
+        return new PdoConnection(
+            new ConnectionConfig(
+                driver: DriverName::SQLite,
+                name: 'unreachable',
+                database: '/nonexistent/dirthara.sqlite',
+            ),
+            new SQLiteDriver(new StandardTransactionGrammar(new SavepointPrefix())),
+        );
+    }
+
     protected function withUsers(): Connection
     {
         $connection = $this->sqlite();

@@ -29,7 +29,7 @@ final class PdoTransactionManagerTest extends TestCase
     private function manager(): PdoTransactionManager
     {
         return new PdoTransactionManager(
-            $this->pdo,
+            fn(): PDO => $this->pdo,
             new StandardTransactionGrammar(new SavepointPrefix()),
             new ConnectionConfig(driver: DriverName::SQLite, name: 'testing', database: ':memory:'),
         );

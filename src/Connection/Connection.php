@@ -27,9 +27,6 @@ interface Connection
      */
     public function lastInsertId(?string $sequence = null): ?string;
 
-    /**
-     * @throws ConnectionException
-     */
     public function transactions(): TransactionManager;
 
     /**

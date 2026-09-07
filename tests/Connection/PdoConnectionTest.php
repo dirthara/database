@@ -11,6 +11,7 @@ use Dirthara\Database\Connection\Operation;
 use Dirthara\Database\Tests\ConnectionTestCase;
 use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Connection\Exceptions\QueryException;
+use Dirthara\Database\Connection\Exceptions\ConnectionException;
 use Dirthara\Database\Connection\Exceptions\TransactionException;
 
 final class PdoConnectionTest extends ConnectionTestCase
@@ -156,6 +157,23 @@ final class PdoConnectionTest extends ConnectionTestCase
 
         self::assertSame('testing', $connection->name());
         self::assertSame(DriverName::SQLite, $connection->driver());
+    }
+
+    #[Test]
+    public function it_reports_transaction_state_without_connecting(): void
+    {
+        $connection = $this->unreachable();
+
+        self::assertFalse($connection->transactions()->inTransaction());
+        self::assertSame(0, $connection->transactions()->level());
+    }
+
+    #[Test]
+    public function it_connects_only_when_a_transaction_actually_starts(): void
+    {
+        $this->expectException(ConnectionException::class);
+
+        $this->unreachable()->transactions()->begin();
     }
 
     #[Test]

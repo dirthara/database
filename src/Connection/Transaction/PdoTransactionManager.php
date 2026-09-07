@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Dirthara\Database\Connection\Transaction;
 
 use PDO;
+use Closure;
 use Throwable;
 use PDOException;
 use Dirthara\Database\Connection\Operation;
 use Dirthara\Database\Connection\Pdo\PdoError;
 use Dirthara\Database\Exceptions\DatabaseException;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
+use Dirthara\Database\Connection\Exceptions\ConnectionException;
 use Dirthara\Database\Connection\Exceptions\TransactionException;
 
 use function sprintf;
@@ -20,14 +22,18 @@ final class PdoTransactionManager implements TransactionManager
 {
     private int $level = 0;
 
+    /**
+     * @param Closure(): PDO $pdo
+     */
     public function __construct(
-        private readonly PDO $pdo,
+        private readonly Closure $pdo,
         private readonly TransactionGrammar $grammar,
         private readonly ConnectionConfig $config,
     ) {}
 
     /**
      * @throws TransactionException
+     * @throws ConnectionException
      */
     public function begin(): void
     {
@@ -44,6 +50,7 @@ final class PdoTransactionManager implements TransactionManager
 
     /**
      * @throws TransactionException
+     * @throws ConnectionException
      */
     public function commit(): void
     {
@@ -67,6 +74,7 @@ final class PdoTransactionManager implements TransactionManager
 
     /**
      * @throws TransactionException
+     * @throws ConnectionException
      */
     public function rollback(): void
     {
@@ -147,11 +155,12 @@ final class PdoTransactionManager implements TransactionManager
      * @param callable(PDO): bool $action
      *
      * @throws TransactionException
+     * @throws ConnectionException
      */
     private function attempt(callable $action, Operation $operation): void
     {
         try {
-            $succeeded = $action($this->pdo);
+            $succeeded = $action(($this->pdo)());
         } catch (PDOException $exception) {
             throw new TransactionException(
                 message: $exception->getMessage(),
