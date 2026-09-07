@@ -1,10 +1,10 @@
 <?php
 
-namespace Dirthara\Connection;
+namespace Dirthara\Database\Connection;
 
-use Dirthara\Connection\Driver\Driver;
-use Dirthara\Connection\Result\Result;
-use Dirthara\Connection\Transaction\TransactionManager;
+use Dirthara\Database\Connection\Driver\Driver;
+use Dirthara\Database\Connection\Result\Result;
+use Dirthara\Database\Connection\Transaction\TransactionManager;
 use PDO;
 
 final class PdoConnection implements Connection

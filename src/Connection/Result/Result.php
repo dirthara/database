@@ -1,6 +1,6 @@
 <?php
 
-namespace Dirthara\Connection\Result;
+namespace Dirthara\Database\Connection\Result;
 
 class Result
 {

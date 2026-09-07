@@ -1,6 +1,6 @@
 <?php
 
-namespace Dirthara\Connection\Driver;
+namespace Dirthara\Database\Connection\Driver;
 
 class Driver
 {

@@ -1,6 +1,6 @@
 <?php
 
-namespace Dirthara\Connection\Transaction;
+namespace Dirthara\Database\Connection\Transaction;
 
 class TransactionManager
 {

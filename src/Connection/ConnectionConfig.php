@@ -1,6 +1,6 @@
 <?php
 
-namespace Dirthara\Connection;
+namespace Dirthara\Database\Connection;
 
 class ConnectionConfig
 {

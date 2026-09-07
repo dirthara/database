@@ -1,8 +1,10 @@
 <?php
 
-namespace Dirthara\Connection\Exceptions;
+namespace Dirthara\Database\Connection\Exceptions;
 
-class QueryException
+use Dirthara\Database\Exceptions\DatabaseException;
+
+class QueryException extends DatabaseException
 {
 
 }

@@ -1,8 +1,8 @@
 <?php
 
-namespace Dirthara\Connection;
+namespace Dirthara\Database\Connection;
 
-use Dirthara\Connection\Result\Result;
+use Dirthara\Database\Connection\Result\Result;
 
 interface Connection
 {
