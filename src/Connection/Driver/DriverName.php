@@ -2,10 +2,10 @@
 
 namespace Dirthara\Database\Connection\Driver;
 
-enum DriverName
+enum DriverName: string
 {
-    case MySql;
-    case PostgresSql;
-    case SqlServer;
-    case SQLite;
+    case MySql = 'mysql';
+    case PostgresSql = 'pgsql';
+    case SqlServer = 'sqlsrv';
+    case SQLite = 'sqlite';
 }
