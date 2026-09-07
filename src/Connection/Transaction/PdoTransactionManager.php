@@ -1,10 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
+
 namespace Dirthara\Database\Connection\Transaction;
 
-use Dirthara\Database\Connection\Exceptions\TransactionException;
 use PDO;
 use Throwable;
+use Dirthara\Database\Connection\Exceptions\TransactionException;
 
 final class PdoTransactionManager implements TransactionManager
 {
@@ -20,11 +23,7 @@ final class PdoTransactionManager implements TransactionManager
         if ($this->level === 0) {
             $this->pdo->beginTransaction();
         } else {
-            $this->pdo->exec(
-                $this->grammar->createSavepoint(
-                    $this->savepointName($this->level),
-                ),
-            );
+            $this->pdo->exec($this->grammar->createSavepoint($this->savepointName($this->level)));
         }
 
         $this->level++;
@@ -45,9 +44,7 @@ final class PdoTransactionManager implements TransactionManager
             return;
         }
 
-        $sql = $this->grammar->releaseSavepoint(
-            $this->savepointName($this->level),
-        );
+        $sql = $this->grammar->releaseSavepoint($this->savepointName($this->level));
 
         if ($sql !== null) {
             $this->pdo->exec($sql);
@@ -69,11 +66,7 @@ final class PdoTransactionManager implements TransactionManager
             return;
         }
 
-        $this->pdo->exec(
-            $this->grammar->rollbackToSavepoint(
-                $this->savepointName($this->level),
-            ),
-        );
+        $this->pdo->exec($this->grammar->rollbackToSavepoint($this->savepointName($this->level)));
     }
 
     public function inTransaction(): bool
@@ -117,9 +110,7 @@ final class PdoTransactionManager implements TransactionManager
     private function ensureActiveTransaction(): void
     {
         if (!$this->inTransaction()) {
-            throw new TransactionException(
-                'There is no active transaction.',
-            );
+            throw new TransactionException('There is no active transaction.');
         }
     }
 }

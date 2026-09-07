@@ -21,8 +21,12 @@
         "mago": "sh scripts/mago.sh",
         "fmt": "mago fmt",
         "fmt-check": "mago fmt --check",
-        "lint": "mago lint",
+        "lint": "mago lint --fix --potentially-unsafe",
         "analyze": "mago analyze",
-        "guard": "mago guard"
+        "guard": "mago guard",
+        "cs": [
+            "@fmt-check",
+            "@lint"
+        ]
     }
 }

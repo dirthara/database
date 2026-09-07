@@ -14,7 +14,7 @@ class ConnectionConfig
         public ?int $port = null,
         public ?string $database = null,
         public ?string $username = null,
-        public ?string $password = null,
+        #[\SensitiveParameter] public ?string $password = null,
         public ?string $charset = null,
         public array $options = [],
     ) {}

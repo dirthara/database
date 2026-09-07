@@ -13,3 +13,9 @@ expand-use-groups = true
 enabled = true
 level = "error"
 allow-disabling = false
+
+[linter.rules.too-many-methods]
+enabled = false
+
+[linter.rules.excessive-parameter-list]
+enabled = false

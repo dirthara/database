@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Connection;
 
-use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Connection\Result\Result;
+use Dirthara\Database\Connection\Driver\DriverName;
 
 interface Connection
 {

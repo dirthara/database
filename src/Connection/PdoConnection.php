@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Connection;
 
-use Dirthara\Database\Connection\Driver\DriverName;
 use PDO;
 use PDOException;
 use PDOStatement;
 use Dirthara\Database\Connection\Driver\Driver;
 use Dirthara\Database\Connection\Result\Result;
 use Dirthara\Database\Connection\Result\PdoResult;
+use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Connection\Exceptions\QueryException;
 use Dirthara\Database\Connection\Transaction\TransactionManager;
 
@@ -69,9 +69,7 @@ final class PdoConnection implements Connection
 
     public function transaction(callable $callback): mixed
     {
-        return $this->transactions->run(
-            fn () => call_user_func($callback, $this)
-        );
+        return $this->transactions->run(fn() => call_user_func($callback, $this));
     }
 
     private function bindParameters(PDOStatement $statement, array $parameters): void
