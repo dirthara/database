@@ -37,6 +37,13 @@ final class PdoConnection implements Connection
         try {
             $statement = $this->pdo()->prepare($query);
 
+            if ($statement === false) {
+                throw new QueryException('Failed to prepare the query.', context: [
+                    'operation' => 'prepare',
+                    'query' => $query,
+                ]);
+            }
+
             $this->bindParameters($statement, $parameters);
 
             $statement->execute();
