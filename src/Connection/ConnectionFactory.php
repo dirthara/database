@@ -8,7 +8,9 @@ use Dirthara\Database\Connection\Driver\Driver;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 use Dirthara\Database\Connection\Exceptions\ConnectionException;
 
+use function array_reverse;
 use function array_key_exists;
+use function iterator_to_array;
 
 final readonly class ConnectionFactory
 {
@@ -18,11 +20,17 @@ final readonly class ConnectionFactory
     private array $drivers;
 
     /**
+     * @var list<ConnectionMiddleware>
+     */
+    private array $middleware;
+
+    /**
      * @param iterable<Driver> $drivers
+     * @param iterable<ConnectionMiddleware> $middleware
      *
      * @throws ConnectionException
      */
-    public function __construct(iterable $drivers)
+    public function __construct(iterable $drivers, iterable $middleware = [])
     {
         $registeredDrivers = [];
 
@@ -39,6 +47,7 @@ final readonly class ConnectionFactory
         }
 
         $this->drivers = $registeredDrivers;
+        $this->middleware = iterator_to_array($middleware, preserve_keys: false);
     }
 
     /**
@@ -51,6 +60,12 @@ final readonly class ConnectionFactory
             context: $config->diagnostics(),
         );
 
-        return new PdoConnection(config: $config, driver: $driver);
+        $connection = new PdoConnection(config: $config, driver: $driver);
+
+        foreach (array_reverse($this->middleware) as $middleware) {
+            $connection = $middleware->wrap($connection);
+        }
+
+        return $connection;
     }
 }

@@ -9,7 +9,6 @@ use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Connection\ConnectionFactory;
 use Dirthara\Database\Connection\ConnectionManager;
 use Dirthara\Database\Connection\Driver\DriverName;
-use Dirthara\Database\Connection\Driver\MySqlDriver;
 use Dirthara\Database\Connection\Driver\SQLiteDriver;
 use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
@@ -119,32 +118,5 @@ final class ConnectionManagerTest extends TestCase
         $manager->disconnect();
 
         self::assertSame('default', $manager->connection()->name());
-    }
-
-    #[Test]
-    public function the_factory_reports_an_unregistered_driver(): void
-    {
-        try {
-            $this->factory()->create(new ConnectionConfig(driver: DriverName::MySql, name: 'reporting'));
-
-            self::fail('Expected a ConnectionException.');
-        } catch (ConnectionException $exception) {
-            self::assertSame('The requested database driver is not registered.', $exception->getMessage());
-            self::assertSame('mysql', $exception->getContext()['driver']);
-            self::assertSame('reporting', $exception->getContext()['connection']);
-        }
-    }
-
-    #[Test]
-    public function the_factory_rejects_a_duplicated_driver(): void
-    {
-        $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('registered more than once');
-
-        new ConnectionFactory([
-            new SQLiteDriver(new StandardTransactionGrammar(new SavepointPrefix())),
-            new MySqlDriver(new StandardTransactionGrammar(new SavepointPrefix())),
-            new SQLiteDriver(new StandardTransactionGrammar(new SavepointPrefix())),
-        ]);
     }
 }

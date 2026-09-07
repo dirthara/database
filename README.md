@@ -61,6 +61,26 @@ Every exception extends `DatabaseException` and carries diagnostic context for a
 PSR-3 logger, including the connection name, driver, and operation. Credentials
 are never part of it.
 
+A `ConnectionMiddleware` wraps every connection the factory creates, which is
+where cross-cutting behaviour such as query logging or retrying a dropped
+connection belongs. The first entry becomes the outermost layer.
+
+```php
+final class LogQueries implements ConnectionMiddleware
+{
+    public function wrap(Connection $connection): Connection
+    {
+        return new LoggingConnection($connection, $this->logger);
+    }
+}
+
+$factory = new ConnectionFactory([new MySqlDriver($grammar)], [new LogQueries($logger)]);
+```
+
+A decorator that wraps `transaction()` must pass itself to the callback rather
+than the connection it wraps, otherwise queries inside a transaction bypass the
+decoration.
+
 Two settings are driver-specific: `charset` is applied through the DSN on MySQL
 and through `client_encoding` on PostgreSQL; SQLite and SQL Server reject it
 rather than accept and ignore it. `options` are PDO attributes keyed by the
