@@ -21,6 +21,17 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@v5
 
+      # mago.toml includes vendor for dependency analysis, so the analyzer needs
+      # the dependencies present to resolve PHPUnit's classes and attributes.
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          coverage: none
+
+      - name: Install dependencies
+        uses: ramsey/composer-install@v3
+
       # Mago runs through the image pinned in compose.yaml, so CI and a local
       # checkout always run the same version. Every check runs even when an
       # earlier one fails, which is what scripts/mago.sh does locally.
@@ -129,6 +140,13 @@ jobs:
 
       - name: Install dependencies
         uses: ramsey/composer-install@v3
+
+      # Named up front so a failure below reads as a missing driver or an
+      # unreachable service rather than an unexplained test error.
+      - name: Report the test environment
+        run: |
+          php -r 'echo "PDO drivers: ", implode(", ", PDO::getAvailableDrivers()), PHP_EOL;'
+          php -r 'echo "Coverage: ", extension_loaded("xdebug") ? "xdebug" : "none", PHP_EOL;'
 
       - name: Run the test suite with coverage
         run: composer test-coverage
