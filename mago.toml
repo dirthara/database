@@ -1,0 +1,15 @@
+php-version = "8.5"
+
+[source]
+paths = ["src", "tests"]
+includes = ["vendor"]
+
+[formatter]
+sort-uses = "length-ascending"
+separate-use-types = true
+expand-use-groups = true
+
+[linter.rules.strict-types]
+enabled = true
+level = "error"
+allow-disabling = false

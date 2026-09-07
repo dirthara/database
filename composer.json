@@ -16,5 +16,8 @@
             "name": "DWL Lemmens"
         }
     ],
-    "minimum-stability": "dev"
+    "minimum-stability": "dev",
+    "scripts": {
+        "mago": "sh scripts/mago.sh"
+    }
 }

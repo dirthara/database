@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Dirthara\Database\Connection;
 
 use Dirthara\Database\Connection\Result\Result;

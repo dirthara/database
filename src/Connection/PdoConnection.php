@@ -1,11 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Dirthara\Database\Connection;
 
+use PDO;
 use Dirthara\Database\Connection\Driver\Driver;
 use Dirthara\Database\Connection\Result\Result;
 use Dirthara\Database\Connection\Transaction\TransactionManager;
-use PDO;
 
 final class PdoConnection implements Connection
 {

@@ -6,6 +6,7 @@ RUN apt-get update \
     && docker-php-ext-install pdo
 
 COPY --from=composer:2.10.3 /usr/bin/composer /usr/local/bin/composer
+COPY --from=ghcr.io/carthage-software/mago:1.47.3 /usr/local/bin/mago /usr/local/bin/mago
 
 ARG LOCAL_UID=1000
 ARG LOCAL_GID=1000
