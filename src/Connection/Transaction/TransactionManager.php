@@ -16,5 +16,12 @@ interface TransactionManager
 
     public function level(): int;
 
+    /**
+     * @template T
+     *
+     * @param callable(): T $callback
+     *
+     * @return T
+     */
     public function run(callable $callback): mixed;
 }

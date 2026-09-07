@@ -14,6 +14,13 @@ interface Connection
      */
     public function execute(string $query, array $parameters): Result;
 
+    /**
+     * @template T
+     *
+     * @param callable(Connection): T $callback
+     *
+     * @return T
+     */
     public function transaction(callable $callback): mixed;
 
     public function beginTransaction(): void;

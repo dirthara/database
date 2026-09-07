@@ -79,6 +79,12 @@ final class PdoTransactionManager implements TransactionManager
     }
 
     /**
+     * @template T
+     *
+     * @param callable(): T $callback
+     *
+     * @return T
+     *
      * @throws Throwable
      */
     public function run(callable $callback): mixed
@@ -86,7 +92,7 @@ final class PdoTransactionManager implements TransactionManager
         $this->begin();
 
         try {
-            $result = call_user_func($callback);
+            $result = $callback();
 
             $this->commit();
 

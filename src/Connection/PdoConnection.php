@@ -84,9 +84,16 @@ final class PdoConnection implements Connection
         return $this->transactions?->inTransaction() ?? false;
     }
 
+    /**
+     * @template T
+     *
+     * @param callable(Connection): T $callback
+     *
+     * @return T
+     */
     public function transaction(callable $callback): mixed
     {
-        return $this->transactions()->run(fn() => call_user_func($callback, $this));
+        return $this->transactions()->run(fn() => $callback($this));
     }
 
     /**
