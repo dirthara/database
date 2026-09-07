@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-
 namespace Dirthara\Database\Connection\Transaction;
 
 interface TransactionGrammar

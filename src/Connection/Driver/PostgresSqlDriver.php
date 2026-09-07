@@ -6,6 +6,9 @@ namespace Dirthara\Database\Connection\Driver;
 
 use PDO;
 use Dirthara\Database\Connection\ConnectionConfig;
+use Dirthara\Database\Connection\Exceptions\ConnectionException;
+
+use function trim;
 
 class PostgresSqlDriver implements Driver
 {
@@ -14,9 +17,25 @@ class PostgresSqlDriver implements Driver
         return DriverName::PostgresSql;
     }
 
+    /**
+     * @throws ConnectionException
+     */
     public function connect(ConnectionConfig $config): PDO
     {
-        $dsn = sprintf('pgsql:host=%s;port=%d;dbname=%s', $config->host, $config->port ?? 5432, $config->database);
+        $host = $config->host;
+
+        if ($host === null || trim($host) === '') {
+            throw new ConnectionException('PostgreSQL requires a nonempty host.', context: [
+                'driver' => $config->driver->value,
+            ]);
+        }
+
+        $dsn = sprintf('pgsql:host=%s;port=%d', $host, $config->port ?? 5432);
+        $database = $config->database;
+
+        if ($database !== null && trim($database) !== '') {
+            $dsn .= ';dbname=' . $database;
+        }
 
         return new PDO($dsn, $config->username, $config->password, $this->options($config));
     }

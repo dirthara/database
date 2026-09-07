@@ -6,6 +6,9 @@ namespace Dirthara\Database\Connection\Driver;
 
 use PDO;
 use Dirthara\Database\Connection\ConnectionConfig;
+use Dirthara\Database\Connection\Exceptions\ConnectionException;
+
+use function trim;
 
 class MySqlDriver implements Driver
 {
@@ -14,15 +17,26 @@ class MySqlDriver implements Driver
         return DriverName::MySql;
     }
 
+    /**
+     * @throws ConnectionException
+     */
     public function connect(ConnectionConfig $config): PDO
     {
-        $dsn = sprintf(
-            'mysql:host=%s;port=%d;dbname=%s;charset=%s',
-            $config->host,
-            $config->port ?? 3306,
-            $config->database,
-            $config->charset ?? 'utf8mb4',
-        );
+        $host = $config->host;
+
+        if ($host === null || trim($host) === '') {
+            throw new ConnectionException('MySQL requires a nonempty host.', context: [
+                'driver' => $config->driver->value,
+            ]);
+        }
+
+        $dsn = sprintf('mysql:host=%s;port=%d;charset=%s', $host, $config->port ?? 3306, $config->charset ?? 'utf8mb4');
+
+        $database = $config->database;
+
+        if ($database !== null && trim($database) !== '') {
+            $dsn .= ';dbname=' . $database;
+        }
 
         return new PDO($dsn, $config->username, $config->password, $this->options($config));
     }

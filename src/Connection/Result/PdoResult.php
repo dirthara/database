@@ -25,9 +25,7 @@ final readonly class PdoResult implements Result
     public function all(): array
     {
         /** @var list<array<string, mixed>> $rows */
-        $rows = $this->statement->fetchAll(PDO::FETCH_ASSOC);
-
-        return $rows;
+        return $this->statement->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function column(int|string $column = 0): array
@@ -57,9 +55,7 @@ final readonly class PdoResult implements Result
     private function fetchColumnByInt(int $column): array
     {
         /** @var list<mixed> $values */
-        $values = $this->statement->fetchAll(PDO::FETCH_COLUMN, $column);
-
-        return $values;
+        return $this->statement->fetchAll(PDO::FETCH_COLUMN, $column);
     }
 
     /**
