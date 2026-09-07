@@ -21,10 +21,6 @@ final readonly class ConnectionFactory
     {
         $driver = $this->drivers[$config->driver->value];
 
-        return new PdoConnection(
-            config: $config,
-            driver: $driver,
-            transactions: new TransactionManager(),
-        );
+        return new PdoConnection(config: $config, driver: $driver, transactions: new TransactionManager());
     }
 }
