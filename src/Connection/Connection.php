@@ -9,6 +9,9 @@ use Dirthara\Database\Connection\Driver\DriverName;
 
 interface Connection
 {
+    /**
+     * @param array<int|string, scalar|null> $parameters
+     */
     public function execute(string $query, array $parameters): Result;
 
     public function transaction(callable $callback): mixed;

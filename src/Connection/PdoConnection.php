@@ -30,6 +30,8 @@ final class PdoConnection implements Connection
     }
 
     /**
+     * @param array<int|string, scalar|null> $parameters
+     *
      * @throws QueryException
      */
     public function execute(string $query, array $parameters): Result
@@ -79,6 +81,9 @@ final class PdoConnection implements Connection
         return $this->transactions->run(fn() => call_user_func($callback, $this));
     }
 
+    /**
+     * @param array<int|string, scalar|null> $parameters
+     */
     private function bindParameters(PDOStatement $statement, array $parameters): void
     {
         foreach ($parameters as $key => $value) {
