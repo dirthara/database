@@ -48,7 +48,7 @@
         "coverage": "php scripts/coverage.php build/coverage/clover.xml 100",
         "cs": [
             "@fmt",
-            "@lint"
+            "@lint-fix"
         ],
         "ci": [
             "@mago",
