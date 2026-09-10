@@ -6,9 +6,11 @@ namespace Dirthara\Database\Query\Grammar;
 
 use LogicException;
 use Dirthara\Database\Query\Join\JoinType;
+use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Join\JoinClause;
 use Dirthara\Database\Query\Queries\SelectQuery;
 
+use function implode;
 use function sprintf;
 
 final class MySqlQueryGrammar extends SqlQueryGrammar
@@ -43,6 +45,25 @@ final class MySqlQueryGrammar extends SqlQueryGrammar
             $query->limit === null ? self::UNLIMITED : (string) $query->limit,
             $query->offset,
         );
+    }
+
+    /**
+     * @param list<OrderBy> $orders
+     * @param list<scalar|null> $bindings
+     */
+    protected function compileMutationOrders(array $orders, string $operation, array &$bindings): string
+    {
+        if ($orders === []) {
+            return '';
+        }
+
+        $compiled = [];
+
+        foreach ($orders as $order) {
+            $compiled[] = $this->compileOrder($order, $bindings);
+        }
+
+        return ' ORDER BY ' . implode(', ', $compiled);
     }
 
     /**

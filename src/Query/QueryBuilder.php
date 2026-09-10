@@ -515,12 +515,13 @@ final class QueryBuilder
             return 0;
         }
 
-        $this->assertNoJoinedMutation('update');
+        $this->assertMutable('update');
 
         $query = $this->grammar->compileUpdate(new UpdateQuery(
             table: $this->table,
             values: $values,
             wheres: $this->wheres,
+            orders: $this->orders,
             limit: $this->limit,
         ));
 
@@ -533,11 +534,12 @@ final class QueryBuilder
      */
     public function delete(): int
     {
-        $this->assertNoJoinedMutation('delete');
+        $this->assertMutable('delete');
 
         $query = $this->grammar->compileDelete(new DeleteQuery(
             table: $this->table,
             wheres: $this->wheres,
+            orders: $this->orders,
             limit: $this->limit,
         ));
 
@@ -725,12 +727,14 @@ final class QueryBuilder
     /**
      * @throws LogicException
      */
-    private function assertNoJoinedMutation(string $operation): void
+    private function assertMutable(string $operation): void
     {
-        if ($this->joins === []) {
-            return;
+        if ($this->joins !== []) {
+            throw new LogicException(sprintf('Joined %s queries are not supported yet.', $operation));
         }
 
-        throw new LogicException(sprintf('Joined %s queries are not supported yet.', $operation));
+        if ($this->offset !== null) {
+            throw new LogicException(sprintf('%s queries cannot skip rows with an offset.', ucfirst($operation)));
+        }
     }
 }

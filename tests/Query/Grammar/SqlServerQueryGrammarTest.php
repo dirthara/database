@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Tests\Query\Grammar;
 
+use LogicException;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Join\JoinType;
@@ -319,12 +320,42 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
     }
 
     #[Test]
+    public function it_rejects_an_ordered_update(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('An ordered update query is not supported by this driver.');
+
+        $this->grammar->compileUpdate(new UpdateQuery(
+            table: new Identifier('users'),
+            values: ['active' => 0],
+            wheres: [],
+            orders: [new OrderBy(new Identifier('id'), OrderDirection::Ascending)],
+            limit: null,
+        ));
+    }
+
+    #[Test]
+    public function it_rejects_an_ordered_delete(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('An ordered delete query is not supported by this driver.');
+
+        $this->grammar->compileDelete(new DeleteQuery(
+            table: new Identifier('users'),
+            wheres: [],
+            orders: [new OrderBy(new Identifier('id'), OrderDirection::Ascending)],
+            limit: null,
+        ));
+    }
+
+    #[Test]
     public function it_updates_rows(): void
     {
         $query = $this->grammar->compileUpdate(new UpdateQuery(
             table: new Identifier('users'),
             values: ['active' => 0],
             wheres: [new Where(new Identifier('id'), ComparisonOperator::Equal, 7, BooleanOperator::And)],
+            orders: [],
             limit: null,
         ));
 
@@ -339,6 +370,7 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
             table: new Identifier('users'),
             values: ['active' => 0],
             wheres: [new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
+            orders: [],
             limit: 1,
         ));
 
@@ -352,6 +384,7 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
         $query = $this->grammar->compileDelete(new DeleteQuery(
             table: new Identifier('users'),
             wheres: [new Where(new Identifier('id'), ComparisonOperator::Equal, 7, BooleanOperator::And)],
+            orders: [],
             limit: null,
         ));
 
@@ -364,7 +397,12 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
     {
         self::assertSame(
             'DELETE TOP (5) FROM [users]',
-            $this->grammar->compileDelete(new DeleteQuery(table: new Identifier('users'), wheres: [], limit: 5))->sql,
+            $this->grammar->compileDelete(new DeleteQuery(
+                table: new Identifier('users'),
+                wheres: [],
+                orders: [],
+                limit: 5,
+            ))->sql,
         );
     }
 }

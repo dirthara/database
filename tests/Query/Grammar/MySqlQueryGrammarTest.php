@@ -770,6 +770,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
             table: new Identifier('users'),
             values: ['name' => 'Ada', 'active' => 1],
             wheres: [new Where(new Identifier('id'), ComparisonOperator::Equal, 7, BooleanOperator::And)],
+            orders: [],
             limit: null,
         ));
 
@@ -784,6 +785,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
             table: new Identifier('users'),
             values: ['active' => 0],
             wheres: [],
+            orders: [],
             limit: null,
         ));
 
@@ -798,6 +800,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
             table: new Identifier('users'),
             values: ['active' => 0],
             wheres: [new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
+            orders: [],
             limit: 1,
         ));
 
@@ -806,11 +809,60 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     }
 
     #[Test]
+    public function it_orders_an_update(): void
+    {
+        $query = $this->grammar->compileUpdate(new UpdateQuery(
+            table: new Identifier('users'),
+            values: ['active' => 0],
+            wheres: [new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
+            orders: [new OrderBy(new Identifier('created_at'), OrderDirection::Ascending)],
+            limit: 1,
+        ));
+
+        self::assertSame(
+            'UPDATE `users` SET `active` = ? WHERE `active` = ? ORDER BY `created_at` ASC LIMIT 1',
+            $query->sql,
+        );
+        self::assertSame([0, 1], $query->bindings);
+    }
+
+    #[Test]
+    public function it_orders_a_delete(): void
+    {
+        $query = $this->grammar->compileDelete(new DeleteQuery(
+            table: new Identifier('users'),
+            wheres: [],
+            orders: [
+                new OrderBy(new Identifier('created_at'), OrderDirection::Ascending),
+                new OrderBy(new Identifier('id'), OrderDirection::Descending),
+            ],
+            limit: 5,
+        ));
+
+        self::assertSame('DELETE FROM `users` ORDER BY `created_at` ASC, `id` DESC LIMIT 5', $query->sql);
+    }
+
+    #[Test]
+    public function it_binds_a_raw_order_of_a_delete_last(): void
+    {
+        $query = $this->grammar->compileDelete(new DeleteQuery(
+            table: new Identifier('users'),
+            wheres: [new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
+            orders: [new OrderBy(new RawExpression('FIELD(name, ?)', ['Ada']), OrderDirection::Ascending)],
+            limit: 1,
+        ));
+
+        self::assertSame('DELETE FROM `users` WHERE `active` = ? ORDER BY FIELD(name, ?) ASC LIMIT 1', $query->sql);
+        self::assertSame([1, 'Ada'], $query->bindings);
+    }
+
+    #[Test]
     public function it_deletes_rows(): void
     {
         $query = $this->grammar->compileDelete(new DeleteQuery(
             table: new Identifier('users'),
             wheres: [new Where(new Identifier('id'), ComparisonOperator::Equal, 7, BooleanOperator::And)],
+            orders: [],
             limit: null,
         ));
 
@@ -826,6 +878,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
             $this->grammar->compileDelete(new DeleteQuery(
                 table: new Identifier('users'),
                 wheres: [],
+                orders: [],
                 limit: null,
             ))->sql,
         );
@@ -836,7 +889,12 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     {
         self::assertSame(
             'DELETE FROM `users` LIMIT 5',
-            $this->grammar->compileDelete(new DeleteQuery(table: new Identifier('users'), wheres: [], limit: 5))->sql,
+            $this->grammar->compileDelete(new DeleteQuery(
+                table: new Identifier('users'),
+                wheres: [],
+                orders: [],
+                limit: 5,
+            ))->sql,
         );
     }
 }

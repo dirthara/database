@@ -454,12 +454,42 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     }
 
     #[Test]
+    public function it_rejects_an_ordered_update(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('An ordered update query is not supported by this driver.');
+
+        $this->grammar->compileUpdate(new UpdateQuery(
+            table: new Identifier('users'),
+            values: ['active' => 0],
+            wheres: [],
+            orders: [new OrderBy(new Identifier('id'), OrderDirection::Ascending)],
+            limit: null,
+        ));
+    }
+
+    #[Test]
+    public function it_rejects_an_ordered_delete(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('An ordered delete query is not supported by this driver.');
+
+        $this->grammar->compileDelete(new DeleteQuery(
+            table: new Identifier('users'),
+            wheres: [],
+            orders: [new OrderBy(new Identifier('id'), OrderDirection::Ascending)],
+            limit: null,
+        ));
+    }
+
+    #[Test]
     public function it_updates_rows(): void
     {
         $query = $this->grammar->compileUpdate(new UpdateQuery(
             table: new Identifier('users'),
             values: ['active' => 0],
             wheres: [new Where(new Identifier('id'), ComparisonOperator::Equal, 7, BooleanOperator::And)],
+            orders: [],
             limit: null,
         ));
 
@@ -473,6 +503,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         $query = $this->grammar->compileDelete(new DeleteQuery(
             table: new Identifier('users'),
             wheres: [new Where(new Identifier('id'), ComparisonOperator::Equal, 7, BooleanOperator::And)],
+            orders: [],
             limit: null,
         ));
 
@@ -490,6 +521,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
             table: new Identifier('users'),
             values: ['active' => 0],
             wheres: [],
+            orders: [],
             limit: 1,
         ));
     }
@@ -500,7 +532,12 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('A limited delete query is not supported by this driver.');
 
-        $this->grammar->compileDelete(new DeleteQuery(table: new Identifier('users'), wheres: [], limit: 1));
+        $this->grammar->compileDelete(new DeleteQuery(
+            table: new Identifier('users'),
+            wheres: [],
+            orders: [],
+            limit: 1,
+        ));
     }
 
     #[Test]
@@ -573,6 +610,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
             table: new Identifier('users'),
             values: [],
             wheres: [],
+            orders: [],
             limit: null,
         ));
     }

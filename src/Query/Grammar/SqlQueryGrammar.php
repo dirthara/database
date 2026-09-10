@@ -133,7 +133,8 @@ abstract class SqlQueryGrammar implements QueryGrammar
 
         $sql =
             sprintf('UPDATE%s %s SET %s', $top, $table, implode(', ', $assignments))
-            . $this->compileWhereSection(array_values($query->wheres), $bindings);
+            . $this->compileWhereSection(array_values($query->wheres), $bindings)
+            . $this->compileMutationOrders($query->orders, 'update', $bindings);
 
         return new CompiledQuery($sql . $suffix, $bindings);
     }
@@ -148,7 +149,8 @@ abstract class SqlQueryGrammar implements QueryGrammar
 
         $sql =
             sprintf('DELETE%s FROM %s', $top, $table)
-            . $this->compileWhereSection(array_values($query->wheres), $bindings);
+            . $this->compileWhereSection(array_values($query->wheres), $bindings)
+            . $this->compileMutationOrders($query->orders, 'delete', $bindings);
 
         return new CompiledQuery($sql . $suffix, $bindings);
     }
@@ -258,6 +260,19 @@ abstract class SqlQueryGrammar implements QueryGrammar
         }
 
         return $sql;
+    }
+
+    /**
+     * @param list<OrderBy> $orders
+     * @param list<scalar|null> $bindings
+     */
+    protected function compileMutationOrders(array $orders, string $operation, array &$bindings): string
+    {
+        if ($orders === []) {
+            return '';
+        }
+
+        throw new LogicException(sprintf('An ordered %s query is not supported by this driver.', $operation));
     }
 
     /**

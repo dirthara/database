@@ -264,6 +264,25 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
     }
 
     #[Test]
+    public function it_carries_the_ordering_into_an_update(): void
+    {
+        $this->executing('UPDATE users SET active = ?', [0])->orderBy('name')->limit(1)->update(['active' => 0]);
+
+        self::assertNotNull($this->grammar->update);
+        self::assertCount(1, $this->grammar->update->orders);
+        self::assertSame(1, $this->grammar->update->limit);
+    }
+
+    #[Test]
+    public function it_rejects_an_update_that_skips_rows(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Update queries cannot skip rows with an offset.');
+
+        $this->executing('UPDATE users SET active = ?')->offset(5)->update(['active' => 0]);
+    }
+
+    #[Test]
     public function it_rejects_an_update_over_a_join(): void
     {
         $this->expectException(LogicException::class);
@@ -290,6 +309,25 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
         self::assertEquals(new Identifier('users'), $this->grammar->delete->table);
         self::assertSame(1, $this->grammar->delete->limit);
         self::assertCount(1, $this->grammar->delete->wheres);
+    }
+
+    #[Test]
+    public function it_carries_the_ordering_into_a_delete(): void
+    {
+        $this->executing('DELETE FROM users')->orderByDesc('name')->limit(2)->delete();
+
+        self::assertNotNull($this->grammar->delete);
+        self::assertCount(1, $this->grammar->delete->orders);
+        self::assertSame(2, $this->grammar->delete->limit);
+    }
+
+    #[Test]
+    public function it_rejects_a_delete_that_skips_rows(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Delete queries cannot skip rows with an offset.');
+
+        $this->executing('DELETE FROM users')->offset(5)->delete();
     }
 
     #[Test]
