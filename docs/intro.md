@@ -38,6 +38,28 @@ the builder will hand you its SQL and bindings whenever you ask.
 Everything is an interface with one shipped implementation per database, so a
 connection or a grammar can be decorated or replaced without reaching for PDO.
 
+## What is public
+
+The package is meant to be used through three things: the connection setup, the
+`Database` entry point, and the query builder. Those, the expressions you hand
+the builder, and the grammar seams are the public API.
+
+| Public | |
+| --- | --- |
+| `Database`, `ConnectedDatabase` | The entry point. |
+| `Connection`, `ConnectionManager`, `ConnectionFactory`, `Driver`, `Result`, `TransactionManager` | Connection setup and use. |
+| `QueryBuilder` | Everything you call to build and run a query. |
+| `Dirthara\Database\Query\Expression\*` | `Identifier`, `RawExpression`, `Aliased`, `ExpressionFactory`. |
+| `Dirthara\Database\Query\Sql\*` | The enums a builder method accepts: `ComparisonOperator`, `JoinType`, `OrderDirection`, `AggregateFunction`. |
+| `Dirthara\Database\Query\Grammar\*` | The `QueryGrammar` interface, `SqlQueryGrammar`, the four drivers, the resolver. |
+| `CompiledQuery` | What `compile()` returns. |
+
+Everything under `Query\Clause` and `Query\Queries` is marked `@internal`. How
+a query is represented between the builder and the grammar is this package's own
+business, and clause types get added as the builder grows — so those classes
+change without a major version. Use `toSql()`, `bindings()`, or `compile()` to
+see what a builder will run.
+
 ## Design notes
 
 Connections are lazy. Building a `ConnectionConfig`, a `ConnectionFactory`, or a

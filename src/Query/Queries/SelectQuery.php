@@ -6,10 +6,13 @@ namespace Dirthara\Database\Query\Queries;
 
 use Dirthara\Database\Query\Clause\Union;
 use Dirthara\Database\Query\Clause\OrderBy;
-use Dirthara\Database\Query\Join\JoinClause;
+use Dirthara\Database\Query\Clause\JoinClause;
 use Dirthara\Database\Query\Clause\WhereClause;
 use Dirthara\Database\Query\Expression\Expression;
 
+/**
+ * @internal
+ */
 final readonly class SelectQuery
 {
     /**

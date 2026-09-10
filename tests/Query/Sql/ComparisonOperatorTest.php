@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Dirthara\Database\Tests\Query\Operator;
+namespace Dirthara\Database\Tests\Query\Sql;
 
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\DataProvider;
-use Dirthara\Database\Query\Operator\ComparisonOperator;
+use Dirthara\Database\Query\Sql\ComparisonOperator;
 
 final class ComparisonOperatorTest extends TestCase
 {

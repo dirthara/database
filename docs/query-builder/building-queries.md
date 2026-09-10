@@ -498,10 +498,9 @@ meaningful single number, so it is allowed.
 ```php
 $builder = $database->table('users')->where('active', '=', 1);
 
-$builder->toSql();          // SELECT * FROM `users` WHERE `active` = ?
-$builder->bindings();       // [1]
-$builder->compile();        // CompiledQuery { sql, bindings }
-$builder->toSelectQuery();  // the SelectQuery the grammar will compile
+$builder->toSql();     // SELECT * FROM `users` WHERE `active` = ?
+$builder->bindings();  // [1]
+$builder->compile();   // CompiledQuery { sql, bindings }
 ```
 
 These are the same objects the terminal methods use, so what you see is what

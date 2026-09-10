@@ -227,7 +227,9 @@ server is worse than one that fails everywhere.
 ## Writing a grammar
 
 Extend `SqlQueryGrammar` and implement `quote()`. That is the whole requirement;
-everything else has a working default.
+everything else has a working default. The four shipped grammars are extensible
+too, so a database that is a dialect of one of them — MariaDB, say — can start
+from `MySqlQueryGrammar` rather than from the base.
 
 ```php
 use Dirthara\Database\Query\Grammar\SqlQueryGrammar;
@@ -259,6 +261,15 @@ The seams a driver can override:
 
 Register it on the [resolver](../database.md#resolving-grammars) against the
 driver it belongs to.
+
+:::caution
+A grammar necessarily works with the query objects — `SelectQuery`, the clause
+classes — and those are marked `@internal`: how a query is *built* is not part of
+this package's public API, and clause types get added as the builder grows. The
+`QueryGrammar` interface and the seams above are stable; the shape of what gets
+passed through them is not. Pin a minor version if you ship a grammar of your
+own.
+:::
 
 ## A caveat that is SQL's, not the builder's
 

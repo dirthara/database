@@ -6,14 +6,14 @@ namespace Dirthara\Database\Tests\Query\Grammar;
 
 use PHPUnit\Framework\TestCase;
 use Dirthara\Database\Query\Clause\Union;
-use Dirthara\Database\Query\Join\JoinType;
+use Dirthara\Database\Query\Sql\JoinType;
 use Dirthara\Database\Query\Clause\OrderBy;
-use Dirthara\Database\Query\Join\JoinClause;
+use Dirthara\Database\Query\Clause\JoinClause;
 use Dirthara\Database\Query\Clause\WhereClause;
 use Dirthara\Database\Query\Queries\SelectQuery;
 use Dirthara\Database\Query\Expression\Expression;
 use Dirthara\Database\Query\Expression\Identifier;
-use Dirthara\Database\Query\Operator\ComparisonOperator;
+use Dirthara\Database\Query\Sql\ComparisonOperator;
 use Dirthara\Database\Query\Expression\ExpressionFactory;
 
 abstract class GrammarTestCase extends TestCase

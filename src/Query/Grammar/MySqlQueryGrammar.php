@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace Dirthara\Database\Query\Grammar;
 
 use LogicException;
-use Dirthara\Database\Query\Join\JoinType;
+use Dirthara\Database\Query\Sql\JoinType;
 use Dirthara\Database\Query\Clause\OrderBy;
-use Dirthara\Database\Query\Join\JoinClause;
+use Dirthara\Database\Query\Clause\JoinClause;
 use Dirthara\Database\Query\Queries\SelectQuery;
 
 use function implode;
 use function sprintf;
 
-final class MySqlQueryGrammar extends SqlQueryGrammar
+class MySqlQueryGrammar extends SqlQueryGrammar
 {
     /**
      * The largest row count MySQL accepts for an offset that has no limit of its own.

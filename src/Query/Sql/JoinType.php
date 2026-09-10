@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Dirthara\Database\Query\Join;
+namespace Dirthara\Database\Query\Sql;
 
 enum JoinType: string
 {

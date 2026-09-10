@@ -10,7 +10,7 @@ use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
-use Dirthara\Database\Query\Aggregate\AggregateFunction;
+use Dirthara\Database\Query\Sql\AggregateFunction;
 
 final class QueryBuilderExecutionTest extends QueryBuilderTestCase
 {

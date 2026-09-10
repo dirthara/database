@@ -11,7 +11,7 @@ use Dirthara\Database\Query\Queries\UpdateQuery;
 use Dirthara\Database\Query\Expression\Expression;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
-use Dirthara\Database\Query\Aggregate\AggregateFunction;
+use Dirthara\Database\Query\Sql\AggregateFunction;
 
 interface QueryGrammar
 {

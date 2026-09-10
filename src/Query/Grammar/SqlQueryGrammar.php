@@ -10,8 +10,8 @@ use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Clause\WhereIn;
 use Dirthara\Database\Query\Clause\RawWhere;
-use Dirthara\Database\Query\Join\JoinClause;
 use Dirthara\Database\Query\Clause\WhereNull;
+use Dirthara\Database\Query\Clause\JoinClause;
 use Dirthara\Database\Query\Clause\NestedWhere;
 use Dirthara\Database\Query\Clause\WhereClause;
 use Dirthara\Database\Query\Clause\WhereColumn;
@@ -25,8 +25,8 @@ use Dirthara\Database\Query\Queries\UpdateQuery;
 use Dirthara\Database\Query\Expression\Expression;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
+use Dirthara\Database\Query\Sql\AggregateFunction;
 use Dirthara\Database\Query\Expression\RawExpression;
-use Dirthara\Database\Query\Aggregate\AggregateFunction;
 
 use function explode;
 use function implode;
@@ -373,10 +373,7 @@ abstract class SqlQueryGrammar implements QueryGrammar
 
         foreach ($wheres as $index => $where) {
             if ($index > 0) {
-                $sql .= sprintf(
-                    ' %s ',
-                    $where instanceof NestedWhere ? $where->boolean->value : $this->boolean($where),
-                );
+                $sql .= sprintf(' %s ', $where->boolean->value);
             }
 
             $sql .= $this->compileWhere($where, $bindings);
@@ -569,21 +566,6 @@ abstract class SqlQueryGrammar implements QueryGrammar
         $bindings = array_merge($bindings, $subquery->bindings);
 
         return sprintf('%sEXISTS (%s)', $where->negated ? 'NOT ' : '', $subquery->sql);
-    }
-
-    private function boolean(WhereClause $where): string
-    {
-        return match (true) {
-            $where instanceof Where => $where->boolean->value,
-            $where instanceof WhereNull => $where->boolean->value,
-            $where instanceof WhereIn => $where->boolean->value,
-            $where instanceof WhereBetween => $where->boolean->value,
-            $where instanceof WhereColumn => $where->boolean->value,
-            $where instanceof WhereExists => $where->boolean->value,
-            $where instanceof NestedWhere => $where->boolean->value,
-            $where instanceof RawWhere => $where->boolean->value,
-            default => throw new LogicException(sprintf('Unsupported where clause [%s].', $where::class)),
-        };
     }
 
     /**

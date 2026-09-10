@@ -8,6 +8,9 @@ use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Clause\WhereClause;
 use Dirthara\Database\Query\Expression\Expression;
 
+/**
+ * @internal
+ */
 final readonly class DeleteQuery
 {
     /**

@@ -6,6 +6,9 @@ namespace Dirthara\Database\Query\Clause;
 
 use Dirthara\Database\Query\Queries\SelectQuery;
 
+/**
+ * @internal
+ */
 final readonly class Union
 {
     public function __construct(

@@ -9,31 +9,31 @@ use LogicException;
 use InvalidArgumentException;
 use Dirthara\Database\Query\Clause\Union;
 use Dirthara\Database\Query\Clause\Where;
-use Dirthara\Database\Query\Join\JoinType;
+use Dirthara\Database\Query\Sql\JoinType;
 use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Clause\WhereIn;
 use Dirthara\Database\Connection\Connection;
 use Dirthara\Database\Query\Clause\RawWhere;
-use Dirthara\Database\Query\Join\JoinClause;
 use Dirthara\Database\Query\Clause\WhereNull;
+use Dirthara\Database\Query\Clause\JoinClause;
 use Dirthara\Database\Query\Clause\NestedWhere;
 use Dirthara\Database\Query\Clause\WhereClause;
 use Dirthara\Database\Query\Clause\WhereColumn;
 use Dirthara\Database\Query\Clause\WhereExists;
+use Dirthara\Database\Query\Sql\OrderDirection;
 use Dirthara\Database\Query\Clause\WhereBetween;
 use Dirthara\Database\Query\Queries\DeleteQuery;
 use Dirthara\Database\Query\Queries\InsertQuery;
 use Dirthara\Database\Query\Queries\SelectQuery;
 use Dirthara\Database\Query\Queries\UpdateQuery;
+use Dirthara\Database\Query\Sql\BooleanOperator;
 use Dirthara\Database\Query\Grammar\QueryGrammar;
-use Dirthara\Database\Query\Clause\OrderDirection;
 use Dirthara\Database\Query\Expression\Expression;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
+use Dirthara\Database\Query\Sql\AggregateFunction;
+use Dirthara\Database\Query\Sql\ComparisonOperator;
 use Dirthara\Database\Query\Expression\RawExpression;
-use Dirthara\Database\Query\Operator\BooleanOperator;
-use Dirthara\Database\Query\Aggregate\AggregateFunction;
-use Dirthara\Database\Query\Operator\ComparisonOperator;
 use Dirthara\Database\Query\Expression\ExpressionFactory;
 use Dirthara\Database\Connection\Exceptions\QueryException;
 use Dirthara\Database\Connection\Exceptions\ConnectionException;
@@ -730,6 +730,9 @@ final class QueryBuilder
         return $this->grammar->compileSelect($this->toSelectQuery());
     }
 
+    /**
+     * @internal the query objects are not part of the public API
+     */
     public function toSelectQuery(): SelectQuery
     {
         return new SelectQuery(

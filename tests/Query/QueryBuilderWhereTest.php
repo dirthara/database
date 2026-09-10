@@ -17,10 +17,10 @@ use Dirthara\Database\Query\Clause\NestedWhere;
 use Dirthara\Database\Query\Clause\WhereColumn;
 use Dirthara\Database\Query\Clause\WhereExists;
 use Dirthara\Database\Query\Clause\WhereBetween;
+use Dirthara\Database\Query\Sql\BooleanOperator;
 use Dirthara\Database\Query\Expression\Identifier;
+use Dirthara\Database\Query\Sql\ComparisonOperator;
 use Dirthara\Database\Query\Expression\RawExpression;
-use Dirthara\Database\Query\Operator\BooleanOperator;
-use Dirthara\Database\Query\Operator\ComparisonOperator;
 
 final class QueryBuilderWhereTest extends QueryBuilderTestCase
 {

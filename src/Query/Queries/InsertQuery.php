@@ -6,6 +6,9 @@ namespace Dirthara\Database\Query\Queries;
 
 use Dirthara\Database\Query\Expression\Expression;
 
+/**
+ * @internal
+ */
 final readonly class InsertQuery
 {
     /**

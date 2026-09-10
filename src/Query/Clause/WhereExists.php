@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Dirthara\Database\Query\Clause;
 
 use Dirthara\Database\Query\Queries\SelectQuery;
-use Dirthara\Database\Query\Operator\BooleanOperator;
+use Dirthara\Database\Query\Sql\BooleanOperator;
 
+/**
+ * @internal
+ */
 final readonly class WhereExists implements WhereClause
 {
     public function __construct(
