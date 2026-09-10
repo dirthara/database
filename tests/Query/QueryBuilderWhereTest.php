@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\QueryBuilder;
 use Dirthara\Database\Query\Clause\WhereIn;
+use Dirthara\Database\Query\Clause\RawWhere;
 use Dirthara\Database\Query\Clause\WhereNull;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Database\Query\Clause\NestedWhere;
@@ -157,6 +158,34 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
         $this->expectExceptionMessage('Operator [GreaterThan (>)] cannot be used with NULL.');
 
         $this->builder()->where('age', '>', null);
+    }
+
+    #[Test]
+    public function it_adds_a_raw_condition(): void
+    {
+        $wheres = $this->builder()->whereRaw('LOWER(name) = ?', ['ada'])->toSelectQuery()->wheres;
+
+        $where = self::clause(RawWhere::class, $wheres[0]);
+
+        self::assertSame('LOWER(name) = ?', $where->sql);
+        self::assertSame(['ada'], $where->bindings);
+        self::assertSame(BooleanOperator::And, $where->boolean);
+    }
+
+    #[Test]
+    public function it_adds_a_raw_condition_as_an_alternative(): void
+    {
+        $wheres = $this->builder()->orWhereRaw('a = ?', [1])->toSelectQuery()->wheres;
+
+        self::assertSame(BooleanOperator::Or, self::clause(RawWhere::class, $wheres[0])->boolean);
+    }
+
+    #[Test]
+    public function a_raw_condition_needs_no_bindings(): void
+    {
+        $wheres = $this->builder()->whereRaw('deleted_at IS NULL')->toSelectQuery()->wheres;
+
+        self::assertSame([], self::clause(RawWhere::class, $wheres[0])->bindings);
     }
 
     #[Test]
@@ -514,6 +543,8 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
 
         self::assertSame($builder, $builder->where('name', '=', 'Ada'));
         self::assertSame($builder, $builder->orWhere('name', '=', 'Ada'));
+        self::assertSame($builder, $builder->whereRaw('1 = 1'));
+        self::assertSame($builder, $builder->orWhereRaw('1 = 1'));
         self::assertSame($builder, $builder->whereNull('deleted_at'));
         self::assertSame($builder, $builder->orWhereNull('deleted_at'));
         self::assertSame($builder, $builder->whereNotNull('deleted_at'));

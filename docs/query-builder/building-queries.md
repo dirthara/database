@@ -63,6 +63,7 @@ as the opener.
 | `whereColumn($first, $operator, $second)` | `first op second` — no binding |
 | `whereNested(Closure $callback)` | `(…)` around whatever the callback adds |
 | `whereExists(QueryBuilder $query)` / `whereNotExists(...)` | `EXISTS (…)` / `NOT EXISTS (…)` |
+| `whereRaw(string $sql, array $bindings = [])` | The fragment as written, in parentheses |
 
 ```php
 $database->table('users')
@@ -95,6 +96,16 @@ $database->table('users')->where('id', 'IN', [1, 2]);
 // InvalidArgumentException: The operator [IN] cannot compare two values;
 // expected one of =, !=, >, >=, <, <=, LIKE, NOT LIKE.
 ```
+
+The list is also closed, which means an operator your database has and this one
+does not — PostgreSQL's `ILIKE` or `@>`, MySQL's `<=>`, `IS DISTINCT FROM` — is
+not reachable through `where()`. Use [`whereRaw()`](#raw-conditions) for those.
+
+:::caution
+Do not reach for a raw *expression* instead. `where(new RawExpression('name ILIKE ?', […]), '=', true)`
+compiles to `WHERE name ILIKE ? = ?`, which is not what you meant and is not
+rejected. A whole raw condition is `whereRaw()`.
+:::
 
 ### Comparing to null
 
@@ -155,6 +166,34 @@ $database->table('users')
 A callback that adds no condition adds no parentheses, so a group built from an
 optional filter disappears when the filter is empty.
 
+### Raw conditions
+
+`whereRaw()` and `orWhereRaw()` take a whole condition, with its own bindings:
+
+```php
+$database->table('users')
+    ->where('active', '=', 1)
+    ->orWhereRaw('name ILIKE ?', ['ada%']);
+
+// WHERE `active` = ? OR (name ILIKE ?)
+```
+
+The fragment is wrapped in parentheses. That matters more than it looks: `AND`
+binds tighter than `OR`, so without them a fragment containing its own `OR`
+would re-associate and quietly mean something else.
+
+```php
+->where('x', '=', 1)->whereRaw('a = ? OR b = ?', [2, 3]);
+
+// WHERE `x` = ? AND (a = ? OR b = ?)     with the parentheses
+// WHERE `x` = ? AND a = ? OR b = ?       without them: (x AND a) OR b
+```
+
+:::danger
+Nothing in the fragment is escaped. Put `?` in the SQL and pass values in the
+bindings array; never concatenate input into it.
+:::
+
 ### Subqueries
 
 `whereExists()` takes another builder. `newQuery()` gives you one on the same
@@ -213,12 +252,33 @@ $database->table('users')
 ```
 
 `groupBy()` appends, so repeated calls accumulate. `groupByRaw()` appends a raw
-fragment. `having()` and `orHaving()` take the same operators as `where()`.
+fragment.
+
+The `having` family mirrors the `where` family, since both compile the same
+clauses:
+
+| Method | Compiles to |
+| --- | --- |
+| `having($column, $operator, $value)` | `column op ?` |
+| `havingNull($column)` / `havingNotNull($column)` | `column IS NULL` / `IS NOT NULL` |
+| `havingRaw(string $sql, array $bindings = [])` | The fragment as written, in parentheses |
+
+Each has an `or` form. `having()` takes the same operators as `where()`.
+
+```php
+$database->table('users')
+    ->select('role')
+    ->groupBy('role')
+    ->havingRaw('COUNT(*) > ?', [1])
+    ->orHavingNull('role');
+
+// GROUP BY `role` HAVING (COUNT(*) > ?) OR `role` IS NULL
+```
 
 :::caution
-`having()` rejects a null value. `HAVING total = NULL` is never true, so an
-exception is more useful than an empty result set. There is no `havingNull()`
-yet, which means `HAVING … IS NULL` cannot be expressed.
+`having()` rejects a null value, because `HAVING total = NULL` is never true and
+an exception is more useful than an empty result set. Use `havingNull()` when a
+null test is what you want.
 :::
 
 ## Ordering and paging

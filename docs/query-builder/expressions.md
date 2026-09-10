@@ -72,7 +72,7 @@ The bindings are interleaved in the order the SQL emits each clause — select,
 then joins, then conditions, then groups, then havings, then ordering — so a
 bound fragment in the select list keeps its values ahead of the conditions'.
 
-Three shorthands exist for the common positions:
+Shorthands exist for the common positions:
 
 ```php
 $database->table('users')
@@ -80,6 +80,12 @@ $database->table('users')
     ->groupByRaw('DATE(created_at)')
     ->orderByRaw('FIELD(status, ?, ?)', ['live', 'draft']);
 ```
+
+A whole raw *condition* is a different thing — a `RawExpression` fills one slot
+of a comparison, while
+[`whereRaw()`](building-queries.md#raw-conditions) and `havingRaw()` replace the
+comparison itself. Reach for those when the operator you need is not one the
+builder knows.
 
 A raw expression works in a condition's column position too:
 

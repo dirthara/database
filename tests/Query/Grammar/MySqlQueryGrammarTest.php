@@ -10,6 +10,7 @@ use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Join\JoinType;
 use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Clause\WhereIn;
+use Dirthara\Database\Query\Clause\RawWhere;
 use Dirthara\Database\Query\Join\JoinClause;
 use Dirthara\Database\Query\Clause\WhereNull;
 use Dirthara\Database\Query\Clause\NestedWhere;
@@ -328,6 +329,79 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
 
         self::assertSame('SELECT * FROM `users` WHERE `name` = ? OR `active` = ? AND `age` > ?', $query->sql);
         self::assertSame(['Ada', 1, 18], $query->bindings);
+    }
+
+    #[Test]
+    public function it_wraps_a_raw_condition_in_parentheses(): void
+    {
+        $query = $this->grammar->compileSelect($this->select(wheres: [
+            new RawWhere('LOWER(name) = ?', ['ada'], BooleanOperator::And),
+        ]));
+
+        self::assertSame('SELECT * FROM `users` WHERE (LOWER(name) = ?)', $query->sql);
+        self::assertSame(['ada'], $query->bindings);
+    }
+
+    #[Test]
+    public function it_keeps_a_raw_condition_from_reassociating(): void
+    {
+        $query = $this->grammar->compileSelect($this->select(wheres: [
+            new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And),
+            new RawWhere('a = ? OR b = ?', [2, 3], BooleanOperator::And),
+        ]));
+
+        self::assertSame('SELECT * FROM `users` WHERE `active` = ? AND (a = ? OR b = ?)', $query->sql);
+        self::assertSame([1, 2, 3], $query->bindings);
+    }
+
+    #[Test]
+    public function it_joins_a_raw_condition_with_or(): void
+    {
+        $query = $this->grammar->compileSelect($this->select(wheres: [
+            new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And),
+            new RawWhere('deleted_at IS NULL', [], BooleanOperator::Or),
+        ]));
+
+        self::assertSame('SELECT * FROM `users` WHERE `active` = ? OR (deleted_at IS NULL)', $query->sql);
+    }
+
+    #[Test]
+    public function it_filters_groups_with_a_raw_condition(): void
+    {
+        $query = $this->grammar->compileSelect($this->select(
+            columns: $this->columns('role'),
+            groups: $this->columns('role'),
+            havings: [new RawWhere('COUNT(*) > ?', [1], BooleanOperator::And)],
+        ));
+
+        self::assertSame('SELECT `role` FROM `users` GROUP BY `role` HAVING (COUNT(*) > ?)', $query->sql);
+        self::assertSame([1], $query->bindings);
+    }
+
+    #[Test]
+    public function it_tests_a_group_for_null(): void
+    {
+        $query = $this->grammar->compileSelect($this->select(
+            columns: $this->columns('role'),
+            groups: $this->columns('role'),
+            havings: [new WhereNull(new RawExpression('MAX(age)'), true, BooleanOperator::And)],
+        ));
+
+        self::assertSame('SELECT `role` FROM `users` GROUP BY `role` HAVING MAX(age) IS NOT NULL', $query->sql);
+    }
+
+    #[Test]
+    public function it_binds_a_raw_condition_in_clause_order(): void
+    {
+        $query = $this->grammar->compileSelect($this->select(
+            columns: [new RawExpression('COALESCE(name, ?) AS name', ['a'])],
+            wheres: [new RawWhere('active = ?', ['b'], BooleanOperator::And)],
+            groups: $this->columns('role'),
+            havings: [new RawWhere('COUNT(*) > ?', ['c'], BooleanOperator::And)],
+            orders: [new OrderBy(new RawExpression('FIELD(name, ?)', ['d']), OrderDirection::Ascending)],
+        ));
+
+        self::assertSame(['a', 'b', 'c', 'd'], $query->bindings);
     }
 
     #[Test]

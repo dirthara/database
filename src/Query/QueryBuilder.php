@@ -12,6 +12,7 @@ use Dirthara\Database\Query\Join\JoinType;
 use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Clause\WhereIn;
 use Dirthara\Database\Connection\Connection;
+use Dirthara\Database\Query\Clause\RawWhere;
 use Dirthara\Database\Query\Join\JoinClause;
 use Dirthara\Database\Query\Clause\WhereNull;
 use Dirthara\Database\Query\Clause\NestedWhere;
@@ -122,6 +123,22 @@ final class QueryBuilder
     public function orWhere(string|Expression $column, string|ComparisonOperator $operator, mixed $value): self
     {
         return $this->addBasicWhere(column: $column, operator: $operator, value: $value, boolean: BooleanOperator::Or);
+    }
+
+    /**
+     * @param list<scalar|null> $bindings
+     */
+    public function whereRaw(string $sql, array $bindings = []): self
+    {
+        return $this->addWhereRaw($sql, $bindings, BooleanOperator::And);
+    }
+
+    /**
+     * @param list<scalar|null> $bindings
+     */
+    public function orWhereRaw(string $sql, array $bindings = []): self
+    {
+        return $this->addWhereRaw($sql, $bindings, BooleanOperator::Or);
     }
 
     public function whereNull(string|Expression $column): self
@@ -325,6 +342,42 @@ final class QueryBuilder
             value: $value,
             boolean: BooleanOperator::Or,
         );
+    }
+
+    /**
+     * @param list<scalar|null> $bindings
+     */
+    public function havingRaw(string $sql, array $bindings = []): self
+    {
+        return $this->addHavingRaw($sql, $bindings, BooleanOperator::And);
+    }
+
+    /**
+     * @param list<scalar|null> $bindings
+     */
+    public function orHavingRaw(string $sql, array $bindings = []): self
+    {
+        return $this->addHavingRaw($sql, $bindings, BooleanOperator::Or);
+    }
+
+    public function havingNull(string|Expression $column): self
+    {
+        return $this->addHavingNull($column, false, BooleanOperator::And);
+    }
+
+    public function orHavingNull(string|Expression $column): self
+    {
+        return $this->addHavingNull($column, false, BooleanOperator::Or);
+    }
+
+    public function havingNotNull(string|Expression $column): self
+    {
+        return $this->addHavingNull($column, true, BooleanOperator::And);
+    }
+
+    public function orHavingNotNull(string|Expression $column): self
+    {
+        return $this->addHavingNull($column, true, BooleanOperator::Or);
     }
 
     public function orderBy(string|Expression $column, OrderDirection $direction = OrderDirection::Ascending): self
@@ -604,7 +657,39 @@ final class QueryBuilder
 
     private function addWhereNull(string|Expression $column, bool $negated, BooleanOperator $boolean): self
     {
-        $this->wheres[] = new WhereNull(column: ExpressionFactory::from($column), negated: $negated, boolean: $boolean);
+        $this->wheres[] = $this->nullClause($column, $negated, $boolean);
+
+        return $this;
+    }
+
+    private function addHavingNull(string|Expression $column, bool $negated, BooleanOperator $boolean): self
+    {
+        $this->havings[] = $this->nullClause($column, $negated, $boolean);
+
+        return $this;
+    }
+
+    private function nullClause(string|Expression $column, bool $negated, BooleanOperator $boolean): WhereNull
+    {
+        return new WhereNull(column: ExpressionFactory::from($column), negated: $negated, boolean: $boolean);
+    }
+
+    /**
+     * @param list<scalar|null> $bindings
+     */
+    private function addWhereRaw(string $sql, array $bindings, BooleanOperator $boolean): self
+    {
+        $this->wheres[] = new RawWhere(sql: $sql, bindings: $bindings, boolean: $boolean);
+
+        return $this;
+    }
+
+    /**
+     * @param list<scalar|null> $bindings
+     */
+    private function addHavingRaw(string $sql, array $bindings, BooleanOperator $boolean): self
+    {
+        $this->havings[] = new RawWhere(sql: $sql, bindings: $bindings, boolean: $boolean);
 
         return $this;
     }

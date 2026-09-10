@@ -9,6 +9,7 @@ use InvalidArgumentException;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Clause\WhereIn;
+use Dirthara\Database\Query\Clause\RawWhere;
 use Dirthara\Database\Query\Join\JoinClause;
 use Dirthara\Database\Query\Clause\WhereNull;
 use Dirthara\Database\Query\Clause\NestedWhere;
@@ -342,6 +343,7 @@ abstract class SqlQueryGrammar implements QueryGrammar
                 $this->wrap($where->second, $bindings),
             ),
             $where instanceof NestedWhere => sprintf('(%s)', $this->compileWheres($where->wheres, $bindings)),
+            $where instanceof RawWhere => $this->compileRawWhere($where, $bindings),
             $where instanceof WhereExists => $this->compileWhereExists($where, $bindings),
             default => throw new LogicException(sprintf('Unsupported where clause [%s].', $where::class)),
         };
@@ -486,6 +488,18 @@ abstract class SqlQueryGrammar implements QueryGrammar
     /**
      * @param list<scalar|null> $bindings
      */
+    private function compileRawWhere(RawWhere $where, array &$bindings): string
+    {
+        foreach ($where->bindings as $binding) {
+            $bindings[] = $binding;
+        }
+
+        return sprintf('(%s)', $where->sql);
+    }
+
+    /**
+     * @param list<scalar|null> $bindings
+     */
     private function compileWhereExists(WhereExists $where, array &$bindings): string
     {
         $subquery = $this->compileSelect($this->unordered($where->query));
@@ -505,6 +519,7 @@ abstract class SqlQueryGrammar implements QueryGrammar
             $where instanceof WhereColumn => $where->boolean->value,
             $where instanceof WhereExists => $where->boolean->value,
             $where instanceof NestedWhere => $where->boolean->value,
+            $where instanceof RawWhere => $where->boolean->value,
             default => throw new LogicException(sprintf('Unsupported where clause [%s].', $where::class)),
         };
     }

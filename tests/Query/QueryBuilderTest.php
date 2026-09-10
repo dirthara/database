@@ -8,6 +8,8 @@ use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Join\JoinType;
+use Dirthara\Database\Query\Clause\RawWhere;
+use Dirthara\Database\Query\Clause\WhereNull;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Database\Query\Expression\Aliased;
 use Dirthara\Database\Query\Clause\OrderDirection;
@@ -226,6 +228,71 @@ final class QueryBuilderTest extends QueryBuilderTestCase
         self::assertInstanceOf(RawExpression::class, $groups[1]);
         self::assertSame('DATE(created_at + ?)', $groups[1]->sql);
         self::assertSame([1], $groups[1]->bindings);
+    }
+
+    #[Test]
+    public function it_filters_groups_with_a_raw_condition(): void
+    {
+        $havings = $this->builder()->havingRaw('COUNT(*) > ?', [1])->toSelectQuery()->havings;
+
+        $having = self::clause(RawWhere::class, $havings[0]);
+
+        self::assertSame('COUNT(*) > ?', $having->sql);
+        self::assertSame([1], $having->bindings);
+        self::assertSame(BooleanOperator::And, $having->boolean);
+    }
+
+    #[Test]
+    public function it_filters_groups_with_a_raw_condition_as_an_alternative(): void
+    {
+        $havings = $this->builder()->orHavingRaw('COUNT(*) > ?', [1])->toSelectQuery()->havings;
+
+        self::assertSame(BooleanOperator::Or, self::clause(RawWhere::class, $havings[0])->boolean);
+    }
+
+    #[Test]
+    public function it_tests_a_group_for_null(): void
+    {
+        $havings = $this->builder()->havingNull('total')->toSelectQuery()->havings;
+
+        $having = self::clause(WhereNull::class, $havings[0]);
+
+        self::assertSame('total', self::identifier($having->column)->name);
+        self::assertFalse($having->negated);
+        self::assertSame(BooleanOperator::And, $having->boolean);
+    }
+
+    #[Test]
+    public function it_tests_a_group_for_null_as_an_alternative(): void
+    {
+        $havings = $this->builder()->orHavingNull('total')->toSelectQuery()->havings;
+
+        $having = self::clause(WhereNull::class, $havings[0]);
+
+        self::assertFalse($having->negated);
+        self::assertSame(BooleanOperator::Or, $having->boolean);
+    }
+
+    #[Test]
+    public function it_tests_a_group_for_a_value(): void
+    {
+        $havings = $this->builder()->havingNotNull('total')->toSelectQuery()->havings;
+
+        $having = self::clause(WhereNull::class, $havings[0]);
+
+        self::assertTrue($having->negated);
+        self::assertSame(BooleanOperator::And, $having->boolean);
+    }
+
+    #[Test]
+    public function it_tests_a_group_for_a_value_as_an_alternative(): void
+    {
+        $havings = $this->builder()->orHavingNotNull('total')->toSelectQuery()->havings;
+
+        $having = self::clause(WhereNull::class, $havings[0]);
+
+        self::assertTrue($having->negated);
+        self::assertSame(BooleanOperator::Or, $having->boolean);
     }
 
     #[Test]
@@ -558,6 +625,12 @@ final class QueryBuilderTest extends QueryBuilderTestCase
         self::assertSame($builder, $builder->groupBy('role'));
         self::assertSame($builder, $builder->having('total', '>', 1));
         self::assertSame($builder, $builder->orHaving('total', '<', 9));
+        self::assertSame($builder, $builder->havingRaw('COUNT(*) > 1'));
+        self::assertSame($builder, $builder->orHavingRaw('COUNT(*) > 1'));
+        self::assertSame($builder, $builder->havingNull('total'));
+        self::assertSame($builder, $builder->orHavingNull('total'));
+        self::assertSame($builder, $builder->havingNotNull('total'));
+        self::assertSame($builder, $builder->orHavingNotNull('total'));
         self::assertSame($builder, $builder->selectRaw('COUNT(*)'));
         self::assertSame($builder, $builder->groupByRaw('DATE(created_at)'));
         self::assertSame($builder, $builder->orderByRaw('LENGTH(name)'));
