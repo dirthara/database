@@ -8,6 +8,8 @@ use Dirthara\Database\Query\QueryBuilder;
 use Dirthara\Database\Connection\Connection;
 use Dirthara\Database\Query\Clause\WhereClause;
 use Dirthara\Database\Tests\ConnectionTestCase;
+use Dirthara\Database\Query\Expression\Expression;
+use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
 use Dirthara\Database\Tests\Query\Doubles\RecordingGrammar;
 
@@ -27,7 +29,7 @@ abstract class QueryBuilderTestCase extends ConnectionTestCase
     /**
      * A builder over a connection that is never reached, for asserting on builder state.
      */
-    protected function builder(string $table = 'users'): QueryBuilder
+    protected function builder(string|Expression $table = 'users'): QueryBuilder
     {
         return new QueryBuilder($this->sqlite(), $this->grammar, $table);
     }
@@ -42,6 +44,15 @@ abstract class QueryBuilderTestCase extends ConnectionTestCase
         $this->grammar->result = new CompiledQuery($sql, $bindings);
 
         return new QueryBuilder($this->seeded(), $this->grammar, 'users');
+    }
+
+    protected static function identifier(Expression $expression): Identifier
+    {
+        if (!$expression instanceof Identifier) {
+            self::fail(sprintf('Expected an identifier, got %s.', $expression::class));
+        }
+
+        return $expression;
     }
 
     /**

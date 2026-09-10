@@ -23,13 +23,13 @@ final class MySqlQueryGrammar extends SqlQueryGrammar
         return $this->escape($identifier, '`');
     }
 
-    protected function compileJoin(JoinClause $join): string
+    protected function compileJoin(JoinClause $join, array &$bindings): string
     {
         if ($join->type === JoinType::Full) {
             throw new LogicException('MySQL does not support a full join.');
         }
 
-        return parent::compileJoin($join);
+        return parent::compileJoin($join, $bindings);
     }
 
     protected function compileLimit(SelectQuery $query): string

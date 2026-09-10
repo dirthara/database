@@ -22,7 +22,7 @@ final readonly class SelectQuery
      * @param int|null $offset
      */
     public function __construct(
-        public string $table,
+        public Expression $table,
         public array $columns,
         public array $joins,
         public array $wheres,

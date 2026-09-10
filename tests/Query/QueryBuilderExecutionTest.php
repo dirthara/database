@@ -8,7 +8,7 @@ use LogicException;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Where;
-use Dirthara\Database\Query\Expression\Expression;
+use Dirthara\Database\Query\Expression\Identifier;
 
 final class QueryBuilderExecutionTest extends QueryBuilderTestCase
 {
@@ -40,8 +40,8 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
         $this->executing('SELECT name FROM users')->select('name')->where('active', '=', 1)->get();
 
         self::assertNotNull($this->grammar->select);
-        self::assertSame('users', $this->grammar->select->table);
-        self::assertSame('name', $this->grammar->select->columns[0]->expression);
+        self::assertEquals(new Identifier('users'), $this->grammar->select->table);
+        self::assertSame('name', self::identifier($this->grammar->select->columns[0])->name);
         self::assertCount(1, $this->grammar->select->wheres);
     }
 
@@ -150,7 +150,7 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
         $this->executing('SELECT COUNT(*) AS aggregate FROM users')->count();
 
         self::assertNotNull($this->grammar->countColumn);
-        self::assertSame('*', $this->grammar->countColumn->expression);
+        self::assertSame('*', self::identifier($this->grammar->countColumn)->name);
     }
 
     #[Test]
@@ -159,13 +159,13 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
         $this->executing('SELECT COUNT(name) AS aggregate FROM users')->count('name');
 
         self::assertNotNull($this->grammar->countColumn);
-        self::assertSame('name', $this->grammar->countColumn->expression);
+        self::assertSame('name', self::identifier($this->grammar->countColumn)->name);
     }
 
     #[Test]
     public function it_counts_an_expression(): void
     {
-        $column = new Expression('DISTINCT name');
+        $column = new Identifier('DISTINCT name');
 
         $this->executing('SELECT COUNT(DISTINCT name) AS aggregate FROM users')->count($column);
 
@@ -195,7 +195,7 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
         $this->executing('INSERT INTO users (name) VALUES (?)', ['Alan'])->insert(['name' => 'Alan']);
 
         self::assertNotNull($this->grammar->insert);
-        self::assertSame('users', $this->grammar->insert->table);
+        self::assertEquals(new Identifier('users'), $this->grammar->insert->table);
         self::assertSame([['name' => 'Alan']], $this->grammar->insert->rows);
     }
 
@@ -246,11 +246,14 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
             ->update(['active' => 0]);
 
         self::assertNotNull($this->grammar->update);
-        self::assertSame('users', $this->grammar->update->table);
+        self::assertEquals(new Identifier('users'), $this->grammar->update->table);
         self::assertSame(['active' => 0], $this->grammar->update->values);
         self::assertSame(1, $this->grammar->update->limit);
         self::assertCount(1, $this->grammar->update->wheres);
-        self::assertSame('name', self::clause(Where::class, $this->grammar->update->wheres[0])->column->expression);
+        self::assertSame(
+            'name',
+            self::identifier(self::clause(Where::class, $this->grammar->update->wheres[0])->column)->name,
+        );
     }
 
     #[Test]
@@ -284,7 +287,7 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
         $this->executing('DELETE FROM users WHERE name = ?', ['Ada'])->where('name', '=', 'Ada')->limit(1)->delete();
 
         self::assertNotNull($this->grammar->delete);
-        self::assertSame('users', $this->grammar->delete->table);
+        self::assertEquals(new Identifier('users'), $this->grammar->delete->table);
         self::assertSame(1, $this->grammar->delete->limit);
         self::assertCount(1, $this->grammar->delete->wheres);
     }

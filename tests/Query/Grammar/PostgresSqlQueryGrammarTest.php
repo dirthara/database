@@ -21,7 +21,8 @@ use Dirthara\Database\Query\Queries\DeleteQuery;
 use Dirthara\Database\Query\Queries\InsertQuery;
 use Dirthara\Database\Query\Queries\UpdateQuery;
 use Dirthara\Database\Query\Clause\OrderDirection;
-use Dirthara\Database\Query\Expression\Expression;
+use Dirthara\Database\Query\Expression\Identifier;
+use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Query\Operator\BooleanOperator;
 use Dirthara\Database\Query\Operator\ComparisonOperator;
 use Dirthara\Database\Query\Grammar\PostgresSqlQueryGrammar;
@@ -77,18 +78,18 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     #[Test]
     public function it_escapes_a_double_quote_in_a_column_name(): void
     {
-        self::assertSame(
-            'INSERT INTO "users" ("we""ird") VALUES (?)',
-            $this->grammar->compileInsert(new InsertQuery('users', [['we"ird' => 1]]))->sql,
-        );
+        self::assertSame('INSERT INTO "users" ("we""ird") VALUES (?)', $this->grammar->compileInsert(new InsertQuery(
+            new Identifier('users'),
+            [['we"ird' => 1]],
+        ))->sql);
     }
 
     #[Test]
-    public function it_emits_an_expression_that_is_not_an_identifier_as_written(): void
+    public function it_emits_a_raw_expression_as_written(): void
     {
         self::assertSame(
             'SELECT COUNT(*) AS total FROM "users"',
-            $this->grammar->compileSelect($this->select(columns: $this->columns('COUNT(*) AS total')))->sql,
+            $this->grammar->compileSelect($this->select(columns: [new RawExpression('COUNT(*) AS total')]))->sql,
         );
     }
 
@@ -96,7 +97,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_compares_a_column_to_a_binding(): void
     {
         $query = $this->grammar->compileSelect($this->select(wheres: [
-            new Where(new Expression('name'), ComparisonOperator::Equal, 'Ada', BooleanOperator::And),
+            new Where(new Identifier('name'), ComparisonOperator::Equal, 'Ada', BooleanOperator::And),
         ]));
 
         self::assertSame('SELECT * FROM "users" WHERE "name" = ?', $query->sql);
@@ -107,8 +108,8 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_joins_conditions_with_their_own_boolean(): void
     {
         $query = $this->grammar->compileSelect($this->select(wheres: [
-            new Where(new Expression('name'), ComparisonOperator::Equal, 'Ada', BooleanOperator::And),
-            new Where(new Expression('active'), ComparisonOperator::Equal, 1, BooleanOperator::Or),
+            new Where(new Identifier('name'), ComparisonOperator::Equal, 'Ada', BooleanOperator::And),
+            new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::Or),
         ]));
 
         self::assertSame('SELECT * FROM "users" WHERE "name" = ? OR "active" = ?', $query->sql);
@@ -121,7 +122,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT * FROM "users" WHERE "deleted_at" IS NULL',
             $this->grammar->compileSelect($this->select(wheres: [
-                new WhereNull(new Expression('deleted_at'), false, BooleanOperator::And),
+                new WhereNull(new Identifier('deleted_at'), false, BooleanOperator::And),
             ]))->sql,
         );
     }
@@ -132,7 +133,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT * FROM "users" WHERE "deleted_at" IS NOT NULL',
             $this->grammar->compileSelect($this->select(wheres: [
-                new WhereNull(new Expression('deleted_at'), true, BooleanOperator::And),
+                new WhereNull(new Identifier('deleted_at'), true, BooleanOperator::And),
             ]))->sql,
         );
     }
@@ -141,7 +142,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_tests_for_membership(): void
     {
         $query = $this->grammar->compileSelect($this->select(wheres: [
-            new WhereIn(new Expression('id'), [1, 2], false, BooleanOperator::And),
+            new WhereIn(new Identifier('id'), [1, 2], false, BooleanOperator::And),
         ]));
 
         self::assertSame('SELECT * FROM "users" WHERE "id" IN (?, ?)', $query->sql);
@@ -154,7 +155,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT * FROM "users" WHERE "id" NOT IN (?)',
             $this->grammar->compileSelect($this->select(wheres: [
-                new WhereIn(new Expression('id'), [1], true, BooleanOperator::And),
+                new WhereIn(new Identifier('id'), [1], true, BooleanOperator::And),
             ]))->sql,
         );
     }
@@ -165,7 +166,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT * FROM "users" WHERE 1 = 0',
             $this->grammar->compileSelect($this->select(wheres: [
-                new WhereIn(new Expression('id'), [], false, BooleanOperator::And),
+                new WhereIn(new Identifier('id'), [], false, BooleanOperator::And),
             ]))->sql,
         );
     }
@@ -176,7 +177,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT * FROM "users" WHERE 1 = 1',
             $this->grammar->compileSelect($this->select(wheres: [
-                new WhereIn(new Expression('id'), [], true, BooleanOperator::And),
+                new WhereIn(new Identifier('id'), [], true, BooleanOperator::And),
             ]))->sql,
         );
     }
@@ -185,7 +186,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_tests_a_range(): void
     {
         $query = $this->grammar->compileSelect($this->select(wheres: [
-            new WhereBetween(new Expression('age'), 18, 65, false, BooleanOperator::And),
+            new WhereBetween(new Identifier('age'), 18, 65, false, BooleanOperator::And),
         ]));
 
         self::assertSame('SELECT * FROM "users" WHERE "age" BETWEEN ? AND ?', $query->sql);
@@ -198,7 +199,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT * FROM "users" WHERE "age" NOT BETWEEN ? AND ?',
             $this->grammar->compileSelect($this->select(wheres: [
-                new WhereBetween(new Expression('age'), 18, 65, true, BooleanOperator::And),
+                new WhereBetween(new Identifier('age'), 18, 65, true, BooleanOperator::And),
             ]))->sql,
         );
     }
@@ -210,9 +211,9 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
             'SELECT * FROM "users" WHERE "created_at" < "updated_at"',
             $this->grammar->compileSelect($this->select(wheres: [
                 new WhereColumn(
-                    new Expression('created_at'),
+                    new Identifier('created_at'),
                     ComparisonOperator::LessThan,
-                    new Expression('updated_at'),
+                    new Identifier('updated_at'),
                     BooleanOperator::And,
                 ),
             ]))->sql,
@@ -223,10 +224,10 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_groups_nested_conditions(): void
     {
         $query = $this->grammar->compileSelect($this->select(wheres: [
-            new Where(new Expression('active'), ComparisonOperator::Equal, 1, BooleanOperator::And),
+            new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And),
             new NestedWhere([
-                new Where(new Expression('name'), ComparisonOperator::Equal, 'Ada', BooleanOperator::And),
-                new Where(new Expression('name'), ComparisonOperator::Equal, 'Grace', BooleanOperator::Or),
+                new Where(new Identifier('name'), ComparisonOperator::Equal, 'Ada', BooleanOperator::And),
+                new Where(new Identifier('name'), ComparisonOperator::Equal, 'Grace', BooleanOperator::Or),
             ], BooleanOperator::And),
         ]));
 
@@ -238,12 +239,16 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_tests_for_a_matching_subquery(): void
     {
         $query = $this->grammar->compileSelect($this->select(wheres: [
-            new WhereExists($this->select(table: 'posts', columns: $this->columns('id'), wheres: [new Where(
-                new Expression('posts.views'),
-                ComparisonOperator::GreaterThan,
-                10,
+            new WhereExists(
+                $this->select(table: new Identifier('posts'), columns: $this->columns('id'), wheres: [new Where(
+                    new Identifier('posts.views'),
+                    ComparisonOperator::GreaterThan,
+                    10,
+                    BooleanOperator::And,
+                )]),
+                false,
                 BooleanOperator::And,
-            )]), false, BooleanOperator::And),
+            ),
         ]));
 
         self::assertSame(
@@ -259,7 +264,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT * FROM "users" WHERE NOT EXISTS (SELECT * FROM "posts")',
             $this->grammar->compileSelect($this->select(wheres: [
-                new WhereExists($this->select(table: 'posts'), true, BooleanOperator::And),
+                new WhereExists($this->select(table: new Identifier('posts')), true, BooleanOperator::And),
             ]))->sql,
         );
     }
@@ -288,7 +293,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         $query = $this->grammar->compileSelect($this->select(
             columns: $this->columns('role'),
             groups: $this->columns('role'),
-            havings: [new Where(new Expression('role'), ComparisonOperator::NotEqual, 'guest', BooleanOperator::And)],
+            havings: [new Where(new Identifier('role'), ComparisonOperator::NotEqual, 'guest', BooleanOperator::And)],
         ));
 
         self::assertSame('SELECT "role" FROM "users" GROUP BY "role" HAVING "role" != ?', $query->sql);
@@ -301,8 +306,8 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT * FROM "users" ORDER BY "name" ASC, "created_at" DESC',
             $this->grammar->compileSelect($this->select(orders: [
-                new OrderBy(new Expression('name'), OrderDirection::Ascending),
-                new OrderBy(new Expression('created_at'), OrderDirection::Descending),
+                new OrderBy(new Identifier('name'), OrderDirection::Ascending),
+                new OrderBy(new Identifier('created_at'), OrderDirection::Descending),
             ]))->sql,
         );
     }
@@ -340,10 +345,10 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         $query = $this->grammar->compileSelect($this->select(
             columns: $this->columns('users.name'),
             joins: [$this->join(JoinType::Inner)],
-            wheres: [new Where(new Expression('users.active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
+            wheres: [new Where(new Identifier('users.active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
             groups: $this->columns('users.name'),
-            havings: [new Where(new Expression('total'), ComparisonOperator::GreaterThan, 2, BooleanOperator::And)],
-            orders: [new OrderBy(new Expression('users.name'), OrderDirection::Ascending)],
+            havings: [new Where(new Identifier('total'), ComparisonOperator::GreaterThan, 2, BooleanOperator::And)],
+            orders: [new OrderBy(new Identifier('users.name'), OrderDirection::Ascending)],
             limit: 5,
             offset: 10,
         ));
@@ -361,7 +366,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_compiles_an_existence_check(): void
     {
         $query = $this->grammar->compileExists($this->select(wheres: [new Where(
-            new Expression('active'),
+            new Identifier('active'),
             ComparisonOperator::Equal,
             1,
             BooleanOperator::And,
@@ -376,7 +381,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     {
         self::assertSame(
             'SELECT COUNT(*) AS "aggregate" FROM "users"',
-            $this->grammar->compileCount($this->select(), new Expression('*'))->sql,
+            $this->grammar->compileCount($this->select(), new Identifier('*'))->sql,
         );
     }
 
@@ -385,7 +390,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     {
         self::assertSame(
             'SELECT COUNT("name") AS "aggregate" FROM "users"',
-            $this->grammar->compileCount($this->select(), new Expression('name'))->sql,
+            $this->grammar->compileCount($this->select(), new Identifier('name'))->sql,
         );
     }
 
@@ -394,12 +399,12 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     {
         $query = $this->grammar->compileCount(
             $this->select(
-                wheres: [new Where(new Expression('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
-                orders: [new OrderBy(new Expression('name'), OrderDirection::Ascending)],
+                wheres: [new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
+                orders: [new OrderBy(new Identifier('name'), OrderDirection::Ascending)],
                 limit: 10,
                 offset: 5,
             ),
-            new Expression('*'),
+            new Identifier('*'),
         );
 
         self::assertSame('SELECT COUNT(*) AS "aggregate" FROM "users" WHERE "active" = ?', $query->sql);
@@ -411,14 +416,17 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     {
         self::assertSame(
             'SELECT COUNT(*) AS "aggregate" FROM (SELECT "role" FROM "users" GROUP BY "role") AS "aggregate"',
-            $this->grammar->compileCount($this->select(groups: $this->columns('role')), new Expression('*'))->sql,
+            $this->grammar->compileCount($this->select(groups: $this->columns('role')), new Identifier('*'))->sql,
         );
     }
 
     #[Test]
     public function it_inserts_a_row(): void
     {
-        $query = $this->grammar->compileInsert(new InsertQuery('users', [['name' => 'Ada', 'active' => 1]]));
+        $query = $this->grammar->compileInsert(new InsertQuery(new Identifier('users'), [[
+            'name' => 'Ada',
+            'active' => 1,
+        ]]));
 
         self::assertSame('INSERT INTO "users" ("name", "active") VALUES (?, ?)', $query->sql);
         self::assertSame(['Ada', 1], $query->bindings);
@@ -427,7 +435,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     #[Test]
     public function it_inserts_several_rows(): void
     {
-        $query = $this->grammar->compileInsert(new InsertQuery('users', [
+        $query = $this->grammar->compileInsert(new InsertQuery(new Identifier('users'), [
             ['name' => 'Ada', 'active' => 1],
             ['name' => 'Grace', 'active' => 0],
         ]));
@@ -439,7 +447,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     #[Test]
     public function it_inserts_a_single_row_that_is_not_a_list(): void
     {
-        $query = $this->grammar->compileInsert(new InsertQuery('users', ['name' => 'Ada']));
+        $query = $this->grammar->compileInsert(new InsertQuery(new Identifier('users'), ['name' => 'Ada']));
 
         self::assertSame('INSERT INTO "users" ("name") VALUES (?)', $query->sql);
         self::assertSame(['Ada'], $query->bindings);
@@ -449,9 +457,9 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_updates_rows(): void
     {
         $query = $this->grammar->compileUpdate(new UpdateQuery(
-            table: 'users',
+            table: new Identifier('users'),
             values: ['active' => 0],
-            wheres: [new Where(new Expression('id'), ComparisonOperator::Equal, 7, BooleanOperator::And)],
+            wheres: [new Where(new Identifier('id'), ComparisonOperator::Equal, 7, BooleanOperator::And)],
             limit: null,
         ));
 
@@ -463,8 +471,8 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_deletes_rows(): void
     {
         $query = $this->grammar->compileDelete(new DeleteQuery(
-            table: 'users',
-            wheres: [new Where(new Expression('id'), ComparisonOperator::Equal, 7, BooleanOperator::And)],
+            table: new Identifier('users'),
+            wheres: [new Where(new Identifier('id'), ComparisonOperator::Equal, 7, BooleanOperator::And)],
             limit: null,
         ));
 
@@ -478,7 +486,12 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('A limited update query is not supported by this driver.');
 
-        $this->grammar->compileUpdate(new UpdateQuery(table: 'users', values: ['active' => 0], wheres: [], limit: 1));
+        $this->grammar->compileUpdate(new UpdateQuery(
+            table: new Identifier('users'),
+            values: ['active' => 0],
+            wheres: [],
+            limit: 1,
+        ));
     }
 
     #[Test]
@@ -487,7 +500,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('A limited delete query is not supported by this driver.');
 
-        $this->grammar->compileDelete(new DeleteQuery(table: 'users', wheres: [], limit: 1));
+        $this->grammar->compileDelete(new DeleteQuery(table: new Identifier('users'), wheres: [], limit: 1));
     }
 
     #[Test]
@@ -506,7 +519,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         $this->expectExceptionMessage(sprintf('Unsupported where clause [%s].', UnsupportedWhere::class));
 
         $this->grammar->compileSelect($this->select(wheres: [
-            new Where(new Expression('active'), ComparisonOperator::Equal, 1, BooleanOperator::And),
+            new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And),
             new UnsupportedWhere(),
         ]));
     }
@@ -517,7 +530,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('An insert needs at least one row.');
 
-        $this->grammar->compileInsert(new InsertQuery('users', []));
+        $this->grammar->compileInsert(new InsertQuery(new Identifier('users'), []));
     }
 
     #[Test]
@@ -526,7 +539,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('An insert needs at least one column.');
 
-        $this->grammar->compileInsert(new InsertQuery('users', [[]]));
+        $this->grammar->compileInsert(new InsertQuery(new Identifier('users'), [[]]));
     }
 
     #[Test]
@@ -535,7 +548,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Every inserted row needs the same columns in the same order.');
 
-        $this->grammar->compileInsert(new InsertQuery('users', [['name' => 'Ada'], ['active' => 1]]));
+        $this->grammar->compileInsert(new InsertQuery(new Identifier('users'), [['name' => 'Ada'], ['active' => 1]]));
     }
 
     #[Test]
@@ -544,7 +557,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Every inserted row needs the same columns in the same order.');
 
-        $this->grammar->compileInsert(new InsertQuery('users', [
+        $this->grammar->compileInsert(new InsertQuery(new Identifier('users'), [
             ['name' => 'Ada', 'active' => 1],
             ['active' => 0, 'name' => 'Grace'],
         ]));
@@ -556,7 +569,12 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('An update needs at least one value.');
 
-        $this->grammar->compileUpdate(new UpdateQuery(table: 'users', values: [], wheres: [], limit: null));
+        $this->grammar->compileUpdate(new UpdateQuery(
+            table: new Identifier('users'),
+            values: [],
+            wheres: [],
+            limit: null,
+        ));
     }
 
     #[Test]
@@ -566,7 +584,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
         $this->expectExceptionMessage('A query binding must be scalar or null, got [stdClass].');
 
         $this->grammar->compileSelect($this->select(wheres: [
-            new Where(new Expression('meta'), ComparisonOperator::Equal, new stdClass(), BooleanOperator::And),
+            new Where(new Identifier('meta'), ComparisonOperator::Equal, new stdClass(), BooleanOperator::And),
         ]));
     }
 }

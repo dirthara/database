@@ -26,7 +26,9 @@ use Dirthara\Database\Query\Queries\UpdateQuery;
 use Dirthara\Database\Query\Grammar\QueryGrammar;
 use Dirthara\Database\Query\Clause\OrderDirection;
 use Dirthara\Database\Query\Expression\Expression;
+use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
+use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Query\Operator\BooleanOperator;
 use Dirthara\Database\Query\Operator\ComparisonOperator;
 use Dirthara\Database\Connection\Exceptions\QueryException;
@@ -68,30 +70,42 @@ final class QueryBuilder
 
     private ?int $offset = null;
 
+    private readonly Expression $table;
+
     public function __construct(
         private readonly Connection $connection,
         private readonly QueryGrammar $grammar,
-        private readonly string $table,
+        string|Expression $table,
     ) {
-        if (trim($this->table) === '') {
+        $wrapped = Identifier::wrap($table);
+
+        if ($wrapped instanceof Identifier && trim($wrapped->name) === '') {
             throw new InvalidArgumentException('A query table cannot be empty.');
         }
+
+        $this->table = $wrapped;
     }
 
     public function select(string|Expression ...$columns): self
     {
-        $this->columns = array_values(array_map(static fn($column) => is_string($column)
-            ? new Expression($column)
-            : $column, $columns));
+        $this->columns = array_values(array_map(Identifier::wrap(...), $columns));
 
         return $this;
     }
 
     public function addSelect(string|Expression ...$columns): self
     {
-        array_push($this->columns, ...array_map(static fn($column) => is_string($column)
-            ? new Expression($column)
-            : $column, $columns));
+        array_push($this->columns, ...array_map(Identifier::wrap(...), $columns));
+
+        return $this;
+    }
+
+    /**
+     * @param list<scalar|null> $bindings
+     */
+    public function selectRaw(string $sql, array $bindings = []): self
+    {
+        $this->columns[] = new RawExpression($sql, $bindings);
 
         return $this;
     }
@@ -109,7 +123,7 @@ final class QueryBuilder
     public function whereNull(string|Expression $column): self
     {
         $this->wheres[] = new WhereNull(
-            column: is_string($column) ? new Expression($column) : $column,
+            column: Identifier::wrap($column),
             negated: false,
             boolean: BooleanOperator::And,
         );
@@ -120,7 +134,7 @@ final class QueryBuilder
     public function orWhereNull(string|Expression $column): self
     {
         $this->wheres[] = new WhereNull(
-            column: is_string($column) ? new Expression($column) : $column,
+            column: Identifier::wrap($column),
             negated: false,
             boolean: BooleanOperator::Or,
         );
@@ -131,7 +145,7 @@ final class QueryBuilder
     public function whereNotNull(string|Expression $column): self
     {
         $this->wheres[] = new WhereNull(
-            column: is_string($column) ? new Expression($column) : $column,
+            column: Identifier::wrap($column),
             negated: true,
             boolean: BooleanOperator::And,
         );
@@ -141,11 +155,7 @@ final class QueryBuilder
 
     public function orWhereNotNull(string|Expression $column): self
     {
-        $this->wheres[] = new WhereNull(
-            column: is_string($column) ? new Expression($column) : $column,
-            negated: true,
-            boolean: BooleanOperator::Or,
-        );
+        $this->wheres[] = new WhereNull(column: Identifier::wrap($column), negated: true, boolean: BooleanOperator::Or);
 
         return $this;
     }
@@ -185,7 +195,7 @@ final class QueryBuilder
     public function whereBetween(string|Expression $column, mixed $from, mixed $to): self
     {
         $this->wheres[] = new WhereBetween(
-            column: is_string($column) ? new Expression($column) : $column,
+            column: Identifier::wrap($column),
             from: $from,
             to: $to,
             negated: false,
@@ -198,7 +208,7 @@ final class QueryBuilder
     public function whereNotBetween(string|Expression $column, mixed $from, mixed $to): self
     {
         $this->wheres[] = new WhereBetween(
-            column: is_string($column) ? new Expression($column) : $column,
+            column: Identifier::wrap($column),
             from: $from,
             to: $to,
             negated: true,
@@ -214,9 +224,9 @@ final class QueryBuilder
         string|Expression $second,
     ): self {
         $this->wheres[] = new WhereColumn(
-            first: is_string($first) ? new Expression($first) : $first,
+            first: Identifier::wrap($first),
             operator: is_string($operator) ? ComparisonOperator::from(strtoupper($operator)) : $operator,
-            second: is_string($second) ? new Expression($second) : $second,
+            second: Identifier::wrap($second),
             boolean: BooleanOperator::And,
         );
 
@@ -229,9 +239,9 @@ final class QueryBuilder
         string|Expression $second,
     ): self {
         $this->wheres[] = new WhereColumn(
-            first: is_string($first) ? new Expression($first) : $first,
+            first: Identifier::wrap($first),
             operator: is_string($operator) ? ComparisonOperator::from(strtoupper($operator)) : $operator,
-            second: is_string($second) ? new Expression($second) : $second,
+            second: Identifier::wrap($second),
             boolean: BooleanOperator::Or,
         );
 
@@ -267,17 +277,17 @@ final class QueryBuilder
     }
 
     public function join(
-        string $table, // todo Also allow Expression?
+        string|Expression $table,
         string|Expression $first,
         string|ComparisonOperator $operator,
         string|Expression $second,
         JoinType $type = JoinType::Inner,
     ): self {
         $this->joins[] = new JoinClause(
-            table: $table,
-            first: is_string($first) ? new Expression($first) : $first,
+            table: Identifier::wrap($table),
+            first: Identifier::wrap($first),
             operator: is_string($operator) ? ComparisonOperator::from(strtoupper($operator)) : $operator,
-            second: is_string($second) ? new Expression($second) : $second,
+            second: Identifier::wrap($second),
             type: $type,
         );
 
@@ -285,7 +295,7 @@ final class QueryBuilder
     }
 
     public function leftJoin(
-        string $table, // todo Also allow Expression?
+        string|Expression $table,
         string|Expression $first,
         string|ComparisonOperator $operator,
         string|Expression $second,
@@ -300,7 +310,7 @@ final class QueryBuilder
     }
 
     public function rightJoin(
-        string $table, // todo Also allow Expression?
+        string|Expression $table,
         string|Expression $first,
         string|ComparisonOperator $operator,
         string|Expression $second,
@@ -316,9 +326,17 @@ final class QueryBuilder
 
     public function groupBy(string|Expression ...$columns): self
     {
-        array_push($this->groups, ...array_map(static fn($column) => is_string($column)
-            ? new Expression($column)
-            : $column, $columns));
+        array_push($this->groups, ...array_map(Identifier::wrap(...), $columns));
+
+        return $this;
+    }
+
+    /**
+     * @param list<scalar|null> $bindings
+     */
+    public function groupByRaw(string $sql, array $bindings = []): self
+    {
+        $this->groups[] = new RawExpression($sql, $bindings);
 
         return $this;
     }
@@ -326,7 +344,7 @@ final class QueryBuilder
     public function having(string|Expression $column, string|ComparisonOperator $operator, mixed $value = null): self // todo Is it logical to allow null here?
     {
         return $this->addHaving(
-            column: is_string($column) ? new Expression($column) : $column,
+            column: Identifier::wrap($column),
             operator: is_string($operator) ? ComparisonOperator::from(strtoupper($operator)) : $operator,
             value: $value,
             boolean: BooleanOperator::And,
@@ -336,7 +354,7 @@ final class QueryBuilder
     public function orHaving(string|Expression $column, string|ComparisonOperator $operator, mixed $value = null): self // todo Is it logical to allow null here?
     {
         return $this->addHaving(
-            column: is_string($column) ? new Expression($column) : $column,
+            column: Identifier::wrap($column),
             operator: is_string($operator) ? ComparisonOperator::from(strtoupper($operator)) : $operator,
             value: $value,
             boolean: BooleanOperator::Or,
@@ -345,10 +363,20 @@ final class QueryBuilder
 
     public function orderBy(string|Expression $column, OrderDirection $direction = OrderDirection::Ascending): self
     {
-        $this->orders[] = new OrderBy(
-            column: is_string($column) ? new Expression($column) : $column,
-            direction: $direction,
-        );
+        $this->orders[] = new OrderBy(column: Identifier::wrap($column), direction: $direction);
+
+        return $this;
+    }
+
+    /**
+     * @param list<scalar|null> $bindings
+     */
+    public function orderByRaw(
+        string $sql,
+        array $bindings = [],
+        OrderDirection $direction = OrderDirection::Ascending,
+    ): self {
+        $this->orders[] = new OrderBy(column: new RawExpression($sql, $bindings), direction: $direction);
 
         return $this;
     }
@@ -446,10 +474,7 @@ final class QueryBuilder
      */
     public function count(string|Expression $column = '*'): int
     {
-        $query = $this->grammar->compileCount(
-            $this->toSelectQuery(),
-            is_string($column) ? new Expression($column) : $column,
-        );
+        $query = $this->grammar->compileCount($this->toSelectQuery(), Identifier::wrap($column));
 
         $row = $this->connection->execute($query->sql, $query->bindings)->first();
 
@@ -542,7 +567,7 @@ final class QueryBuilder
     {
         return new SelectQuery(
             table: $this->table,
-            columns: $this->columns === [] ? [new Expression('*')] : $this->columns,
+            columns: $this->columns === [] ? [new Identifier('*')] : $this->columns,
             joins: $this->joins,
             wheres: $this->wheres,
             groups: $this->groups,
@@ -563,21 +588,13 @@ final class QueryBuilder
 
         if ($value === null) {
             if ($operator->isEquality()) {
-                $this->wheres[] = new WhereNull(
-                    column: is_string($column) ? new Expression($column) : $column,
-                    negated: false,
-                    boolean: $boolean,
-                );
+                $this->wheres[] = new WhereNull(column: Identifier::wrap($column), negated: false, boolean: $boolean);
 
                 return $this;
             }
 
             if ($operator->isInequality()) {
-                $this->wheres[] = new WhereNull(
-                    column: is_string($column) ? new Expression($column) : $column,
-                    negated: true,
-                    boolean: $boolean,
-                );
+                $this->wheres[] = new WhereNull(column: Identifier::wrap($column), negated: true, boolean: $boolean);
 
                 return $this;
             }
@@ -590,7 +607,7 @@ final class QueryBuilder
         }
 
         $this->wheres[] = new Where(
-            column: is_string($column) ? new Expression($column) : $column,
+            column: Identifier::wrap($column),
             operator: $operator,
             value: $value,
             boolean: $boolean,
@@ -609,7 +626,7 @@ final class QueryBuilder
         BooleanOperator $boolean,
     ): self {
         $this->wheres[] = new WhereIn(
-            column: is_string($column) ? new Expression($column) : $column,
+            column: Identifier::wrap($column),
             values: is_array($values) ? array_values($values) : array_values(iterator_to_array($values)),
             negated: $negated,
             boolean: $boolean,
@@ -640,7 +657,7 @@ final class QueryBuilder
         BooleanOperator $boolean,
     ): self {
         $this->havings[] = new Where(
-            column: is_string($column) ? new Expression($column) : $column,
+            column: Identifier::wrap($column),
             operator: $operator,
             value: $value,
             boolean: $boolean,

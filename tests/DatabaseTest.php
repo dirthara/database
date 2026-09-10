@@ -10,12 +10,14 @@ use Dirthara\Database\Database;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\ConnectedDatabase;
+use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
 use Dirthara\Database\Connection\ConnectionFactory;
 use Dirthara\Database\Connection\ConnectionManager;
 use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Connection\Driver\MySqlDriver;
 use Dirthara\Database\Connection\Driver\SQLiteDriver;
+use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Query\Grammar\QueryGrammarResolver;
 use Dirthara\Database\Connection\Exceptions\QueryException;
 use Dirthara\Database\Tests\Query\Doubles\RecordingGrammar;
@@ -122,7 +124,7 @@ final class DatabaseTest extends TestCase
 
         self::assertNull($this->grammar->select);
         self::assertNotNull($mysql->select);
-        self::assertSame('orders', $mysql->select->table);
+        self::assertEquals(new Identifier('orders'), $mysql->select->table);
     }
 
     #[Test]
@@ -149,8 +151,16 @@ final class DatabaseTest extends TestCase
     {
         $database = $this->database();
 
-        self::assertSame('users', $database->table('users')->toSelectQuery()->table);
+        self::assertEquals(new Identifier('users'), $database->table('users')->toSelectQuery()->table);
         self::assertSame($this->grammar->result, $database->table('users')->compile());
+    }
+
+    #[Test]
+    public function it_builds_a_query_for_a_table_expression(): void
+    {
+        $table = new RawExpression('users AS u');
+
+        self::assertSame($table, $this->database()->table($table)->toSelectQuery()->table);
     }
 
     #[Test]
@@ -169,7 +179,7 @@ final class DatabaseTest extends TestCase
         $database->table('orders', 'reporting')->compile();
 
         self::assertNotNull($mysql->select);
-        self::assertSame('orders', $mysql->select->table);
+        self::assertEquals(new Identifier('orders'), $mysql->select->table);
     }
 
     #[Test]

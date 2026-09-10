@@ -8,6 +8,7 @@ use Throwable;
 use Dirthara\Database\Query\QueryBuilder;
 use Dirthara\Database\Connection\Connection;
 use Dirthara\Database\Connection\Result\Result;
+use Dirthara\Database\Query\Expression\Expression;
 use Dirthara\Database\Connection\ConnectionManager;
 use Dirthara\Database\Query\Grammar\QueryGrammarResolver;
 use Dirthara\Database\Connection\Exceptions\QueryException;
@@ -41,7 +42,7 @@ final readonly class Database
     /**
      * @throws ConnectionException
      */
-    public function table(string $table, ?string $connection = null): QueryBuilder
+    public function table(string|Expression $table, ?string $connection = null): QueryBuilder
     {
         return $this->using($connection)->table($table);
     }

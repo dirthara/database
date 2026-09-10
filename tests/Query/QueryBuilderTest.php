@@ -10,8 +10,9 @@ use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Join\JoinType;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Database\Query\Clause\OrderDirection;
-use Dirthara\Database\Query\Expression\Expression;
+use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
+use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Query\Operator\BooleanOperator;
 use Dirthara\Database\Query\Operator\ComparisonOperator;
 
@@ -20,7 +21,7 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     #[Test]
     public function it_queries_the_given_table(): void
     {
-        self::assertSame('users', $this->builder()->toSelectQuery()->table);
+        self::assertEquals(new Identifier('users'), $this->builder()->toSelectQuery()->table);
     }
 
     /**
@@ -46,12 +47,39 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     }
 
     #[Test]
+    public function it_queries_a_table_expression(): void
+    {
+        $table = new RawExpression('users AS u');
+
+        self::assertSame($table, $this->builder($table)->toSelectQuery()->table);
+    }
+
+    #[Test]
+    public function it_rejects_an_empty_table_identifier(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('A query table cannot be empty.');
+
+        $this->builder(new Identifier('  '));
+    }
+
+    #[Test]
+    public function it_joins_a_table_expression(): void
+    {
+        $table = new RawExpression('posts AS p');
+
+        $joins = $this->builder()->join($table, 'users.id', '=', 'p.user_id')->toSelectQuery()->joins;
+
+        self::assertSame($table, $joins[0]->table);
+    }
+
+    #[Test]
     public function it_selects_every_column_by_default(): void
     {
         $columns = $this->builder()->toSelectQuery()->columns;
 
         self::assertCount(1, $columns);
-        self::assertSame('*', $columns[0]->expression);
+        self::assertSame('*', self::identifier($columns[0])->name);
     }
 
     #[Test]
@@ -59,13 +87,13 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     {
         $columns = $this->builder()->select('id', 'name')->toSelectQuery()->columns;
 
-        self::assertSame(['id', 'name'], array_map(static fn($column) => $column->expression, $columns));
+        self::assertSame(['id', 'name'], array_map(static fn($column) => self::identifier($column)->name, $columns));
     }
 
     #[Test]
     public function it_keeps_a_selected_expression_as_given(): void
     {
-        $expression = new Expression('COUNT(*)');
+        $expression = new Identifier('COUNT(*)');
 
         self::assertSame([$expression], $this->builder()->select($expression)->toSelectQuery()->columns);
     }
@@ -75,7 +103,7 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     {
         $columns = $this->builder()->select('id')->select('name')->toSelectQuery()->columns;
 
-        self::assertSame(['name'], array_map(static fn($column) => $column->expression, $columns));
+        self::assertSame(['name'], array_map(static fn($column) => self::identifier($column)->name, $columns));
     }
 
     #[Test]
@@ -83,7 +111,7 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     {
         $columns = $this->builder()->select('id')->select()->toSelectQuery()->columns;
 
-        self::assertSame(['*'], array_map(static fn($column) => $column->expression, $columns));
+        self::assertSame(['*'], array_map(static fn($column) => self::identifier($column)->name, $columns));
     }
 
     #[Test]
@@ -91,15 +119,39 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     {
         $columns = $this->builder()->select('id')->addSelect('name', 'email')->toSelectQuery()->columns;
 
-        self::assertSame(['id', 'name', 'email'], array_map(static fn($column) => $column->expression, $columns));
+        self::assertSame(
+            ['id', 'name', 'email'],
+            array_map(static fn($column) => self::identifier($column)->name, $columns),
+        );
     }
 
     #[Test]
     public function it_appends_extra_columns_to_an_empty_selection(): void
     {
-        $columns = $this->builder()->addSelect(new Expression('name'))->toSelectQuery()->columns;
+        $columns = $this->builder()->addSelect(new Identifier('name'))->toSelectQuery()->columns;
 
-        self::assertSame(['name'], array_map(static fn($column) => $column->expression, $columns));
+        self::assertSame(['name'], array_map(static fn($column) => self::identifier($column)->name, $columns));
+    }
+
+    #[Test]
+    public function it_appends_a_raw_selection(): void
+    {
+        $columns = $this->builder()->select('id')->selectRaw('COUNT(*) AS total')->toSelectQuery()->columns;
+
+        self::assertCount(2, $columns);
+        self::assertSame('id', self::identifier($columns[0])->name);
+        self::assertInstanceOf(RawExpression::class, $columns[1]);
+        self::assertSame('COUNT(*) AS total', $columns[1]->sql);
+        self::assertSame([], $columns[1]->bindings);
+    }
+
+    #[Test]
+    public function it_binds_a_raw_selection(): void
+    {
+        $columns = $this->builder()->selectRaw('IF(age > ?, ?, ?)', [40, 'a', 'b'])->toSelectQuery()->columns;
+
+        self::assertInstanceOf(RawExpression::class, $columns[0]);
+        self::assertSame([40, 'a', 'b'], $columns[0]->bindings);
     }
 
     #[Test]
@@ -107,7 +159,7 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     {
         $groups = $this->builder()->groupBy('role')->toSelectQuery()->groups;
 
-        self::assertSame(['role'], array_map(static fn($group) => $group->expression, $groups));
+        self::assertSame(['role'], array_map(static fn($group) => self::identifier($group)->name, $groups));
     }
 
     #[Test]
@@ -116,14 +168,25 @@ final class QueryBuilderTest extends QueryBuilderTestCase
         $groups = $this
             ->builder()
             ->groupBy('role')
-            ->groupBy('team', new Expression('DATE(created_at)'))
+            ->groupBy('team', new Identifier('DATE(created_at)'))
             ->toSelectQuery()
             ->groups;
 
         self::assertSame(
             ['role', 'team', 'DATE(created_at)'],
-            array_map(static fn($group) => $group->expression, $groups),
+            array_map(static fn($group) => self::identifier($group)->name, $groups),
         );
+    }
+
+    #[Test]
+    public function it_groups_by_a_raw_expression(): void
+    {
+        $groups = $this->builder()->groupBy('role')->groupByRaw('DATE(created_at + ?)', [1])->toSelectQuery()->groups;
+
+        self::assertCount(2, $groups);
+        self::assertInstanceOf(RawExpression::class, $groups[1]);
+        self::assertSame('DATE(created_at + ?)', $groups[1]->sql);
+        self::assertSame([1], $groups[1]->bindings);
     }
 
     #[Test]
@@ -132,7 +195,7 @@ final class QueryBuilderTest extends QueryBuilderTestCase
         $orders = $this->builder()->orderBy('name')->toSelectQuery()->orders;
 
         self::assertCount(1, $orders);
-        self::assertSame('name', $orders[0]->column->expression);
+        self::assertSame('name', self::identifier($orders[0]->column)->name);
         self::assertSame(OrderDirection::Ascending, $orders[0]->direction);
     }
 
@@ -147,7 +210,7 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     #[Test]
     public function it_orders_descending(): void
     {
-        $expression = new Expression('created_at');
+        $expression = new Identifier('created_at');
 
         $orders = $this->builder()->orderByDesc($expression)->toSelectQuery()->orders;
 
@@ -160,11 +223,34 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     {
         $orders = $this->builder()->orderBy('role')->orderByDesc('name')->toSelectQuery()->orders;
 
-        self::assertSame(['role', 'name'], array_map(static fn($order) => $order->column->expression, $orders));
+        self::assertSame(
+            ['role', 'name'],
+            array_map(static fn($order) => self::identifier($order->column)->name, $orders),
+        );
         self::assertSame(
             [OrderDirection::Ascending, OrderDirection::Descending],
             array_map(static fn($order) => $order->direction, $orders),
         );
+    }
+
+    #[Test]
+    public function it_orders_by_a_raw_expression(): void
+    {
+        $orders = $this->builder()->orderByRaw('FIELD(status, ?, ?)', ['a', 'b'])->toSelectQuery()->orders;
+
+        self::assertCount(1, $orders);
+        self::assertInstanceOf(RawExpression::class, $orders[0]->column);
+        self::assertSame('FIELD(status, ?, ?)', $orders[0]->column->sql);
+        self::assertSame(['a', 'b'], $orders[0]->column->bindings);
+        self::assertSame(OrderDirection::Ascending, $orders[0]->direction);
+    }
+
+    #[Test]
+    public function it_orders_by_a_raw_expression_in_an_explicit_direction(): void
+    {
+        $orders = $this->builder()->orderByRaw('LENGTH(name)', [], OrderDirection::Descending)->toSelectQuery()->orders;
+
+        self::assertSame(OrderDirection::Descending, $orders[0]->direction);
     }
 
     #[Test]
@@ -218,10 +304,10 @@ final class QueryBuilderTest extends QueryBuilderTestCase
         $joins = $this->builder()->join('posts', 'users.id', '=', 'posts.user_id')->toSelectQuery()->joins;
 
         self::assertCount(1, $joins);
-        self::assertSame('posts', $joins[0]->table);
-        self::assertSame('users.id', $joins[0]->first->expression);
+        self::assertEquals(new Identifier('posts'), $joins[0]->table);
+        self::assertSame('users.id', self::identifier($joins[0]->first)->name);
         self::assertSame(ComparisonOperator::Equal, $joins[0]->operator);
-        self::assertSame('posts.user_id', $joins[0]->second->expression);
+        self::assertSame('posts.user_id', self::identifier($joins[0]->second)->name);
         self::assertSame(JoinType::Inner, $joins[0]->type);
     }
 
@@ -240,8 +326,8 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     #[Test]
     public function it_keeps_join_expressions_as_given(): void
     {
-        $first = new Expression('users.id');
-        $second = new Expression('posts.user_id');
+        $first = new Identifier('users.id');
+        $second = new Identifier('posts.user_id');
 
         $joins = $this->builder()->join('posts', $first, ComparisonOperator::NotEqual, $second)->toSelectQuery()->joins;
 
@@ -301,7 +387,10 @@ final class QueryBuilderTest extends QueryBuilderTestCase
             ->toSelectQuery()
             ->joins;
 
-        self::assertSame(['posts', 'comments'], array_map(static fn($join) => $join->table, $joins));
+        self::assertEquals(
+            [new Identifier('posts'), new Identifier('comments')],
+            array_map(static fn($join) => $join->table, $joins),
+        );
     }
 
     #[Test]
@@ -313,7 +402,7 @@ final class QueryBuilderTest extends QueryBuilderTestCase
 
         $having = self::clause(Where::class, $havings[0]);
 
-        self::assertSame('total', $having->column->expression);
+        self::assertSame('total', self::identifier($having->column)->name);
         self::assertSame(ComparisonOperator::GreaterThan, $having->operator);
         self::assertSame(5, $having->value);
         self::assertSame(BooleanOperator::And, $having->boolean);
@@ -339,7 +428,7 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     #[Test]
     public function it_keeps_a_having_expression_as_given(): void
     {
-        $expression = new Expression('COUNT(*)');
+        $expression = new Identifier('COUNT(*)');
 
         $havings = $this->builder()->having($expression, ComparisonOperator::GreaterThan, 1)->toSelectQuery()->havings;
 
@@ -365,7 +454,7 @@ final class QueryBuilderTest extends QueryBuilderTestCase
         self::assertSame($this->grammar->result, $builder->compile());
         self::assertNotNull($this->grammar->select);
         self::assertSame(3, $this->grammar->select->limit);
-        self::assertSame('name', $this->grammar->select->columns[0]->expression);
+        self::assertSame('name', self::identifier($this->grammar->select->columns[0])->name);
     }
 
     #[Test]
@@ -399,7 +488,7 @@ final class QueryBuilderTest extends QueryBuilderTestCase
             ->offset(10)
             ->toSelectQuery();
 
-        self::assertSame('users', $query->table);
+        self::assertEquals(new Identifier('users'), $query->table);
         self::assertCount(1, $query->columns);
         self::assertCount(1, $query->joins);
         self::assertCount(1, $query->wheres);
@@ -423,6 +512,9 @@ final class QueryBuilderTest extends QueryBuilderTestCase
         self::assertSame($builder, $builder->groupBy('role'));
         self::assertSame($builder, $builder->having('total', '>', 1));
         self::assertSame($builder, $builder->orHaving('total', '<', 9));
+        self::assertSame($builder, $builder->selectRaw('COUNT(*)'));
+        self::assertSame($builder, $builder->groupByRaw('DATE(created_at)'));
+        self::assertSame($builder, $builder->orderByRaw('LENGTH(name)'));
         self::assertSame($builder, $builder->orderBy('name'));
         self::assertSame($builder, $builder->orderByDesc('name'));
         self::assertSame($builder, $builder->limit(1));

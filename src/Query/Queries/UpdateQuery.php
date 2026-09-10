@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Dirthara\Database\Query\Queries;
 
 use Dirthara\Database\Query\Clause\WhereClause;
+use Dirthara\Database\Query\Expression\Expression;
 
 final readonly class UpdateQuery
 {
@@ -13,7 +14,7 @@ final readonly class UpdateQuery
      * @param array<WhereClause> $wheres
      */
     public function __construct(
-        public string $table,
+        public Expression $table,
         public array $values,
         public array $wheres,
         public ?int $limit,

@@ -16,7 +16,8 @@ use Dirthara\Database\Query\Queries\DeleteQuery;
 use Dirthara\Database\Query\Queries\InsertQuery;
 use Dirthara\Database\Query\Queries\UpdateQuery;
 use Dirthara\Database\Query\Clause\OrderDirection;
-use Dirthara\Database\Query\Expression\Expression;
+use Dirthara\Database\Query\Expression\Identifier;
+use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Query\Operator\BooleanOperator;
 use Dirthara\Database\Query\Operator\ComparisonOperator;
 use Dirthara\Database\Query\Grammar\SqlServerQueryGrammar;
@@ -62,18 +63,18 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
     #[Test]
     public function it_escapes_a_closing_bracket_in_a_column_name(): void
     {
-        self::assertSame(
-            'INSERT INTO [users] ([we]]ird]) VALUES (?)',
-            $this->grammar->compileInsert(new InsertQuery('users', [['we]ird' => 1]]))->sql,
-        );
+        self::assertSame('INSERT INTO [users] ([we]]ird]) VALUES (?)', $this->grammar->compileInsert(new InsertQuery(
+            new Identifier('users'),
+            [['we]ird' => 1]],
+        ))->sql);
     }
 
     #[Test]
-    public function it_emits_an_expression_that_is_not_an_identifier_as_written(): void
+    public function it_emits_a_raw_expression_as_written(): void
     {
         self::assertSame(
             'SELECT COUNT(*) AS total FROM [users]',
-            $this->grammar->compileSelect($this->select(columns: $this->columns('COUNT(*) AS total')))->sql,
+            $this->grammar->compileSelect($this->select(columns: [new RawExpression('COUNT(*) AS total')]))->sql,
         );
     }
 
@@ -92,7 +93,7 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT TOP (10) * FROM [users] ORDER BY [name] ASC',
             $this->grammar->compileSelect($this->select(orders: [new OrderBy(
-                new Expression('name'),
+                new Identifier('name'),
                 OrderDirection::Ascending,
             )], limit: 10))->sql,
         );
@@ -104,7 +105,7 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT * FROM [users] ORDER BY [name] ASC OFFSET 20 ROWS FETCH NEXT 10 ROWS ONLY',
             $this->grammar->compileSelect($this->select(
-                orders: [new OrderBy(new Expression('name'), OrderDirection::Ascending)],
+                orders: [new OrderBy(new Identifier('name'), OrderDirection::Ascending)],
                 limit: 10,
                 offset: 20,
             ))->sql,
@@ -117,7 +118,7 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT * FROM [users] ORDER BY [name] ASC OFFSET 20 ROWS',
             $this->grammar->compileSelect($this->select(orders: [new OrderBy(
-                new Expression('name'),
+                new Identifier('name'),
                 OrderDirection::Ascending,
             )], offset: 20))->sql,
         );
@@ -142,8 +143,8 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
     public function it_compares_a_column_to_a_binding(): void
     {
         $query = $this->grammar->compileSelect($this->select(wheres: [
-            new Where(new Expression('name'), ComparisonOperator::Equal, 'Ada', BooleanOperator::And),
-            new Where(new Expression('active'), ComparisonOperator::Equal, 1, BooleanOperator::Or),
+            new Where(new Identifier('name'), ComparisonOperator::Equal, 'Ada', BooleanOperator::And),
+            new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::Or),
         ]));
 
         self::assertSame('SELECT * FROM [users] WHERE [name] = ? OR [active] = ?', $query->sql);
@@ -156,7 +157,7 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT * FROM [users] WHERE [deleted_at] IS NOT NULL',
             $this->grammar->compileSelect($this->select(wheres: [
-                new WhereNull(new Expression('deleted_at'), true, BooleanOperator::And),
+                new WhereNull(new Identifier('deleted_at'), true, BooleanOperator::And),
             ]))->sql,
         );
     }
@@ -165,7 +166,7 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
     public function it_tests_for_membership(): void
     {
         $query = $this->grammar->compileSelect($this->select(wheres: [
-            new WhereIn(new Expression('id'), [1, 2], false, BooleanOperator::And),
+            new WhereIn(new Identifier('id'), [1, 2], false, BooleanOperator::And),
         ]));
 
         self::assertSame('SELECT * FROM [users] WHERE [id] IN (?, ?)', $query->sql);
@@ -176,10 +177,10 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
     public function it_groups_nested_conditions(): void
     {
         $query = $this->grammar->compileSelect($this->select(wheres: [
-            new Where(new Expression('active'), ComparisonOperator::Equal, 1, BooleanOperator::And),
+            new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And),
             new NestedWhere([
-                new Where(new Expression('name'), ComparisonOperator::Equal, 'Ada', BooleanOperator::And),
-                new Where(new Expression('name'), ComparisonOperator::Equal, 'Grace', BooleanOperator::Or),
+                new Where(new Identifier('name'), ComparisonOperator::Equal, 'Ada', BooleanOperator::And),
+                new Where(new Identifier('name'), ComparisonOperator::Equal, 'Grace', BooleanOperator::Or),
             ], BooleanOperator::And),
         ]));
 
@@ -202,14 +203,10 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT * FROM [users] WHERE EXISTS (SELECT * FROM [posts])',
             $this->grammar->compileSelect($this->select(wheres: [
-                new WhereExists(
-                    $this->select(table: 'posts', orders: [new OrderBy(
-                        new Expression('views'),
-                        OrderDirection::Descending,
-                    )]),
-                    false,
-                    BooleanOperator::And,
-                ),
+                new WhereExists($this->select(table: new Identifier('posts'), orders: [new OrderBy(
+                    new Identifier('views'),
+                    OrderDirection::Descending,
+                )]), false, BooleanOperator::And),
             ]))->sql,
         );
     }
@@ -222,8 +219,8 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
             $this->grammar->compileSelect($this->select(wheres: [
                 new WhereExists(
                     $this->select(
-                        table: 'posts',
-                        orders: [new OrderBy(new Expression('views'), OrderDirection::Descending)],
+                        table: new Identifier('posts'),
+                        orders: [new OrderBy(new Identifier('views'), OrderDirection::Descending)],
                         limit: 1,
                     ),
                     false,
@@ -237,11 +234,11 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
     public function it_compiles_an_existence_check(): void
     {
         $query = $this->grammar->compileExists($this->select(wheres: [new Where(
-            new Expression('active'),
+            new Identifier('active'),
             ComparisonOperator::Equal,
             1,
             BooleanOperator::And,
-        )], orders: [new OrderBy(new Expression('name'), OrderDirection::Ascending)]));
+        )], orders: [new OrderBy(new Identifier('name'), OrderDirection::Ascending)]));
 
         self::assertSame(
             'SELECT CASE WHEN EXISTS(SELECT * FROM [users] WHERE [active] = ?) THEN 1 ELSE 0 END AS [exists]',
@@ -255,7 +252,7 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
     {
         self::assertSame(
             'SELECT COUNT([name]) AS [aggregate] FROM [users]',
-            $this->grammar->compileCount($this->select(), new Expression('name'))->sql,
+            $this->grammar->compileCount($this->select(), new Identifier('name'))->sql,
         );
     }
 
@@ -266,11 +263,11 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
             'SELECT COUNT(*) AS [aggregate] FROM [users]',
             $this->grammar->compileCount(
                 $this->select(
-                    orders: [new OrderBy(new Expression('name'), OrderDirection::Ascending)],
+                    orders: [new OrderBy(new Identifier('name'), OrderDirection::Ascending)],
                     limit: 10,
                     offset: 5,
                 ),
-                new Expression('*'),
+                new Identifier('*'),
             )->sql,
         );
     }
@@ -281,9 +278,9 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT COUNT(*) AS [aggregate] FROM (SELECT [role] FROM [users] GROUP BY [role]) AS [aggregate]',
             $this->grammar->compileCount($this->select(groups: $this->columns('role'), orders: [new OrderBy(
-                new Expression('role'),
+                new Identifier('role'),
                 OrderDirection::Ascending,
-            )]), new Expression('*'))->sql,
+            )]), new Identifier('*'))->sql,
         );
     }
 
@@ -293,10 +290,10 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
         $query = $this->grammar->compileSelect($this->select(
             columns: $this->columns('users.name'),
             joins: [$this->join(JoinType::Inner)],
-            wheres: [new Where(new Expression('users.active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
+            wheres: [new Where(new Identifier('users.active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
             groups: $this->columns('users.name'),
-            havings: [new Where(new Expression('total'), ComparisonOperator::GreaterThan, 2, BooleanOperator::And)],
-            orders: [new OrderBy(new Expression('users.name'), OrderDirection::Ascending)],
+            havings: [new Where(new Identifier('total'), ComparisonOperator::GreaterThan, 2, BooleanOperator::And)],
+            orders: [new OrderBy(new Identifier('users.name'), OrderDirection::Ascending)],
             limit: 5,
         ));
 
@@ -312,7 +309,7 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
     #[Test]
     public function it_inserts_several_rows(): void
     {
-        $query = $this->grammar->compileInsert(new InsertQuery('users', [
+        $query = $this->grammar->compileInsert(new InsertQuery(new Identifier('users'), [
             ['name' => 'Ada', 'active' => 1],
             ['name' => 'Grace', 'active' => 0],
         ]));
@@ -325,9 +322,9 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
     public function it_updates_rows(): void
     {
         $query = $this->grammar->compileUpdate(new UpdateQuery(
-            table: 'users',
+            table: new Identifier('users'),
             values: ['active' => 0],
-            wheres: [new Where(new Expression('id'), ComparisonOperator::Equal, 7, BooleanOperator::And)],
+            wheres: [new Where(new Identifier('id'), ComparisonOperator::Equal, 7, BooleanOperator::And)],
             limit: null,
         ));
 
@@ -339,9 +336,9 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
     public function it_limits_an_update_with_top(): void
     {
         $query = $this->grammar->compileUpdate(new UpdateQuery(
-            table: 'users',
+            table: new Identifier('users'),
             values: ['active' => 0],
-            wheres: [new Where(new Expression('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
+            wheres: [new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
             limit: 1,
         ));
 
@@ -353,8 +350,8 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
     public function it_deletes_rows(): void
     {
         $query = $this->grammar->compileDelete(new DeleteQuery(
-            table: 'users',
-            wheres: [new Where(new Expression('id'), ComparisonOperator::Equal, 7, BooleanOperator::And)],
+            table: new Identifier('users'),
+            wheres: [new Where(new Identifier('id'), ComparisonOperator::Equal, 7, BooleanOperator::And)],
             limit: null,
         ));
 
@@ -367,7 +364,7 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
     {
         self::assertSame(
             'DELETE TOP (5) FROM [users]',
-            $this->grammar->compileDelete(new DeleteQuery(table: 'users', wheres: [], limit: 5))->sql,
+            $this->grammar->compileDelete(new DeleteQuery(table: new Identifier('users'), wheres: [], limit: 5))->sql,
         );
     }
 }

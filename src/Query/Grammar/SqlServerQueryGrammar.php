@@ -27,13 +27,13 @@ final class SqlServerQueryGrammar extends SqlQueryGrammar
     /**
      * SQL Server only accepts OFFSET after an ORDER BY, so a paged query without one orders by nothing.
      */
-    protected function compileOrders(SelectQuery $query): string
+    protected function compileOrders(SelectQuery $query, array &$bindings): string
     {
         if ($query->orders === [] && $query->offset !== null) {
             return ' ORDER BY (SELECT NULL)';
         }
 
-        return parent::compileOrders($query);
+        return parent::compileOrders($query, $bindings);
     }
 
     protected function compileLimit(SelectQuery $query): string

@@ -9,6 +9,7 @@ use Dirthara\Database\Query\QueryBuilder;
 use Dirthara\Database\Connection\Connection;
 use Dirthara\Database\Connection\Result\Result;
 use Dirthara\Database\Query\Grammar\QueryGrammar;
+use Dirthara\Database\Query\Expression\Expression;
 use Dirthara\Database\Connection\Exceptions\QueryException;
 use Dirthara\Database\Connection\Exceptions\ConnectionException;
 
@@ -24,7 +25,7 @@ final readonly class ConnectedDatabase
         return $this->connection;
     }
 
-    public function table(string $table): QueryBuilder
+    public function table(string|Expression $table): QueryBuilder
     {
         return new QueryBuilder(connection: $this->connection, grammar: $this->grammar, table: $table);
     }

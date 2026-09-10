@@ -16,7 +16,7 @@ use Dirthara\Database\Query\Clause\NestedWhere;
 use Dirthara\Database\Query\Clause\WhereColumn;
 use Dirthara\Database\Query\Clause\WhereExists;
 use Dirthara\Database\Query\Clause\WhereBetween;
-use Dirthara\Database\Query\Expression\Expression;
+use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Operator\BooleanOperator;
 use Dirthara\Database\Query\Operator\ComparisonOperator;
 
@@ -37,7 +37,7 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
 
         $where = self::clause(Where::class, $wheres[0]);
 
-        self::assertSame('name', $where->column->expression);
+        self::assertSame('name', self::identifier($where->column)->name);
         self::assertSame(ComparisonOperator::Equal, $where->operator);
         self::assertSame('Ada', $where->value);
         self::assertSame(BooleanOperator::And, $where->boolean);
@@ -96,7 +96,7 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
     #[Test]
     public function it_keeps_a_condition_expression_as_given(): void
     {
-        $expression = new Expression('LOWER(name)');
+        $expression = new Identifier('LOWER(name)');
 
         $wheres = $this->builder()->where($expression, '=', 'ada')->toSelectQuery()->wheres;
 
@@ -110,7 +110,7 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
 
         $where = self::clause(WhereNull::class, $wheres[0]);
 
-        self::assertSame('deleted_at', $where->column->expression);
+        self::assertSame('deleted_at', self::identifier($where->column)->name);
         self::assertFalse($where->negated);
         self::assertSame(BooleanOperator::And, $where->boolean);
     }
@@ -118,7 +118,7 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
     #[Test]
     public function it_turns_an_inequality_against_null_into_a_negated_null_test(): void
     {
-        $wheres = $this->builder()->orWhere(new Expression('deleted_at'), '!=', null)->toSelectQuery()->wheres;
+        $wheres = $this->builder()->orWhere(new Identifier('deleted_at'), '!=', null)->toSelectQuery()->wheres;
 
         $where = self::clause(WhereNull::class, $wheres[0]);
 
@@ -142,7 +142,7 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
 
         $where = self::clause(WhereNull::class, $wheres[0]);
 
-        self::assertSame('deleted_at', $where->column->expression);
+        self::assertSame('deleted_at', self::identifier($where->column)->name);
         self::assertFalse($where->negated);
         self::assertSame(BooleanOperator::And, $where->boolean);
     }
@@ -161,7 +161,7 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
     #[Test]
     public function it_tests_for_a_value(): void
     {
-        $expression = new Expression('deleted_at');
+        $expression = new Identifier('deleted_at');
 
         $wheres = $this->builder()->whereNotNull($expression)->toSelectQuery()->wheres;
 
@@ -190,7 +190,7 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
 
         $where = self::clause(WhereIn::class, $wheres[0]);
 
-        self::assertSame('id', $where->column->expression);
+        self::assertSame('id', self::identifier($where->column)->name);
         self::assertSame([1, 2, 3], $where->values);
         self::assertFalse($where->negated);
         self::assertSame(BooleanOperator::And, $where->boolean);
@@ -221,7 +221,7 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
     #[Test]
     public function it_tests_for_exclusion_as_an_alternative(): void
     {
-        $wheres = $this->builder()->orWhereNotIn(new Expression('id'), [1])->toSelectQuery()->wheres;
+        $wheres = $this->builder()->orWhereNotIn(new Identifier('id'), [1])->toSelectQuery()->wheres;
 
         $where = self::clause(WhereIn::class, $wheres[0]);
 
@@ -270,7 +270,7 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
 
         $where = self::clause(WhereBetween::class, $wheres[0]);
 
-        self::assertSame('age', $where->column->expression);
+        self::assertSame('age', self::identifier($where->column)->name);
         self::assertSame(18, $where->from);
         self::assertSame(65, $where->to);
         self::assertFalse($where->negated);
@@ -280,7 +280,7 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
     #[Test]
     public function it_tests_outside_a_range(): void
     {
-        $expression = new Expression('age');
+        $expression = new Identifier('age');
 
         $wheres = $this->builder()->whereNotBetween($expression, 18, 65)->toSelectQuery()->wheres;
 
@@ -298,17 +298,17 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
 
         $where = self::clause(WhereColumn::class, $wheres[0]);
 
-        self::assertSame('created_at', $where->first->expression);
+        self::assertSame('created_at', self::identifier($where->first)->name);
         self::assertSame(ComparisonOperator::LessThan, $where->operator);
-        self::assertSame('updated_at', $where->second->expression);
+        self::assertSame('updated_at', self::identifier($where->second)->name);
         self::assertSame(BooleanOperator::And, $where->boolean);
     }
 
     #[Test]
     public function it_compares_two_columns_as_an_alternative(): void
     {
-        $first = new Expression('created_at');
-        $second = new Expression('updated_at');
+        $first = new Identifier('created_at');
+        $second = new Identifier('updated_at');
 
         $wheres = $this
             ->builder()
@@ -392,7 +392,7 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
             $query->whereNull('deleted_at');
         });
 
-        self::assertSame(['posts'], $tables);
+        self::assertEquals([new Identifier('posts')], $tables);
     }
 
     #[Test]
@@ -404,7 +404,7 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
 
         $where = self::clause(WhereExists::class, $wheres[0]);
 
-        self::assertSame('posts', $where->query->table);
+        self::assertEquals(new Identifier('posts'), $where->query->table);
         self::assertCount(1, $where->query->wheres);
         self::assertFalse($where->negated);
         self::assertSame(BooleanOperator::And, $where->boolean);

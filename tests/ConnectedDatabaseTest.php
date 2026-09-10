@@ -9,7 +9,9 @@ use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\ConnectedDatabase;
 use Dirthara\Database\Connection\Connection;
+use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
+use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Connection\Exceptions\QueryException;
 use Dirthara\Database\Tests\Query\Doubles\RecordingGrammar;
 
@@ -40,7 +42,15 @@ final class ConnectedDatabaseTest extends ConnectionTestCase
     #[Test]
     public function it_builds_a_query_for_a_table(): void
     {
-        self::assertSame('users', $this->database()->table('users')->toSelectQuery()->table);
+        self::assertEquals(new Identifier('users'), $this->database()->table('users')->toSelectQuery()->table);
+    }
+
+    #[Test]
+    public function it_builds_a_query_for_a_table_expression(): void
+    {
+        $table = new RawExpression('users AS u');
+
+        self::assertSame($table, $this->database()->table($table)->toSelectQuery()->table);
     }
 
     #[Test]
@@ -50,7 +60,7 @@ final class ConnectedDatabaseTest extends ConnectionTestCase
 
         self::assertSame($this->grammar->result, $builder->compile());
         self::assertNotNull($this->grammar->select);
-        self::assertSame('users', $this->grammar->select->table);
+        self::assertEquals(new Identifier('users'), $this->grammar->select->table);
     }
 
     #[Test]

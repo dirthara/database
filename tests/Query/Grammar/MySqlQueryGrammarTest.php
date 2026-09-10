@@ -20,10 +20,12 @@ use Dirthara\Database\Query\Queries\DeleteQuery;
 use Dirthara\Database\Query\Queries\InsertQuery;
 use Dirthara\Database\Query\Queries\UpdateQuery;
 use Dirthara\Database\Query\Clause\OrderDirection;
-use Dirthara\Database\Query\Expression\Expression;
+use Dirthara\Database\Query\Expression\Identifier;
+use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Query\Operator\BooleanOperator;
 use Dirthara\Database\Query\Grammar\MySqlQueryGrammar;
 use Dirthara\Database\Query\Operator\ComparisonOperator;
+use Dirthara\Database\Tests\Query\Grammar\Doubles\UnsupportedExpression;
 
 final class MySqlQueryGrammarTest extends GrammarTestCase
 {
@@ -43,6 +45,55 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
 
         self::assertSame('SELECT * FROM `users`', $query->sql);
         self::assertSame([], $query->bindings);
+    }
+
+    #[Test]
+    public function it_quotes_a_qualified_table(): void
+    {
+        self::assertSame(
+            'SELECT * FROM `app`.`users`',
+            $this->grammar->compileSelect($this->select(table: 'app.users'))->sql,
+        );
+    }
+
+    #[Test]
+    public function it_emits_a_raw_table_as_written(): void
+    {
+        self::assertSame(
+            'SELECT `u`.`name` FROM users AS u',
+            $this->grammar->compileSelect($this->select(
+                table: new RawExpression('users AS u'),
+                columns: $this->columns('u.name'),
+            ))->sql,
+        );
+    }
+
+    #[Test]
+    public function it_joins_a_raw_table(): void
+    {
+        self::assertSame(
+            'SELECT * FROM `users` INNER JOIN posts AS p ON `users`.`id` = `p`.`user_id`',
+            $this->grammar->compileSelect($this->select(joins: [new JoinClause(
+                new RawExpression('posts AS p'),
+                new Identifier('users.id'),
+                ComparisonOperator::Equal,
+                new Identifier('p.user_id'),
+                JoinType::Inner,
+            )]))->sql,
+        );
+    }
+
+    #[Test]
+    public function it_binds_a_raw_table_before_the_conditions(): void
+    {
+        $query = $this->grammar->compileSelect($this->select(
+            table: new RawExpression('history(?) AS h', ['2026-01-01']),
+            columns: $this->columns('h.name'),
+            wheres: [new Where(new Identifier('h.active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
+        ));
+
+        self::assertSame('SELECT `h`.`name` FROM history(?) AS h WHERE `h`.`active` = ?', $query->sql);
+        self::assertSame(['2026-01-01', 1], $query->bindings);
     }
 
     #[Test]
@@ -75,34 +126,139 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     #[Test]
     public function it_escapes_a_backtick_in_a_column_name(): void
     {
-        $query = $this->grammar->compileInsert(new InsertQuery('users', [['we`ird' => 1]]));
+        $query = $this->grammar->compileInsert(new InsertQuery(new Identifier('users'), [['we`ird' => 1]]));
 
         self::assertSame('INSERT INTO `users` (`we``ird`) VALUES (?)', $query->sql);
     }
 
     #[Test]
-    public function it_emits_an_expression_that_is_not_an_identifier_as_written(): void
+    public function it_emits_a_raw_expression_as_written(): void
     {
         self::assertSame(
             'SELECT COUNT(*) AS total FROM `users`',
-            $this->grammar->compileSelect($this->select(columns: $this->columns('COUNT(*) AS total')))->sql,
+            $this->grammar->compileSelect($this->select(columns: [new RawExpression('COUNT(*) AS total')]))->sql,
         );
     }
 
     #[Test]
-    public function it_emits_an_identifier_it_cannot_quote_as_written(): void
+    public function it_escapes_a_backtick_in_a_selected_identifier(): void
     {
         self::assertSame(
-            'SELECT we`ird FROM `users`',
+            'SELECT `we``ird` FROM `users`',
             $this->grammar->compileSelect($this->select(columns: $this->columns('we`ird')))->sql,
         );
+    }
+
+    #[Test]
+    public function it_binds_the_values_of_a_raw_expression(): void
+    {
+        $query = $this->grammar->compileSelect($this->select(columns: [new RawExpression('IF(age > ?, ?, ?) AS bracket', [
+            40,
+            'senior',
+            'junior',
+        ])]));
+
+        self::assertSame('SELECT IF(age > ?, ?, ?) AS bracket FROM `users`', $query->sql);
+        self::assertSame([40, 'senior', 'junior'], $query->bindings);
+    }
+
+    #[Test]
+    public function it_binds_a_raw_column_before_the_conditions(): void
+    {
+        $query = $this->grammar->compileSelect($this->select(columns: [new RawExpression('COALESCE(name, ?) AS name', [
+            'unknown',
+        ])], wheres: [new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)]));
+
+        self::assertSame('SELECT COALESCE(name, ?) AS name FROM `users` WHERE `active` = ?', $query->sql);
+        self::assertSame(['unknown', 1], $query->bindings);
+    }
+
+    #[Test]
+    public function it_binds_every_clause_in_the_order_the_query_emits_it(): void
+    {
+        $query = $this->grammar->compileSelect($this->select(
+            columns: [new RawExpression('COALESCE(name, ?) AS name', ['a'])],
+            joins: [new JoinClause(
+                new Identifier('posts'),
+                new RawExpression('IFNULL(users.id, ?)', ['b']),
+                ComparisonOperator::Equal,
+                new Identifier('posts.user_id'),
+                JoinType::Inner,
+            )],
+            wheres: [new Where(new Identifier('active'), ComparisonOperator::Equal, 'c', BooleanOperator::And)],
+            groups: [new RawExpression('DATE(created_at + ?)', ['d'])],
+            havings: [new Where(new Identifier('total'), ComparisonOperator::GreaterThan, 'e', BooleanOperator::And)],
+            orders: [new OrderBy(new RawExpression('FIELD(name, ?)', ['f']), OrderDirection::Ascending)],
+        ));
+
+        self::assertSame(
+            'SELECT COALESCE(name, ?) AS name FROM `users`'
+            . ' INNER JOIN `posts` ON IFNULL(users.id, ?) = `posts`.`user_id`'
+            . ' WHERE `active` = ? GROUP BY DATE(created_at + ?) HAVING `total` > ?'
+            . ' ORDER BY FIELD(name, ?) ASC',
+            $query->sql,
+        );
+        self::assertSame(['a', 'b', 'c', 'd', 'e', 'f'], $query->bindings);
+    }
+
+    #[Test]
+    public function it_binds_a_raw_column_before_a_membership_test(): void
+    {
+        $query = $this->grammar->compileSelect($this->select(wheres: [
+            new WhereIn(
+                new RawExpression('COALESCE(role, ?)', ['guest']),
+                ['admin', 'owner'],
+                false,
+                BooleanOperator::And,
+            ),
+        ]));
+
+        self::assertSame('SELECT * FROM `users` WHERE COALESCE(role, ?) IN (?, ?)', $query->sql);
+        self::assertSame(['guest', 'admin', 'owner'], $query->bindings);
+    }
+
+    #[Test]
+    public function it_binds_a_raw_column_before_a_range(): void
+    {
+        $query = $this->grammar->compileSelect($this->select(wheres: [
+            new WhereBetween(new RawExpression('age + ?', [1]), 18, 65, false, BooleanOperator::And),
+        ]));
+
+        self::assertSame('SELECT * FROM `users` WHERE age + ? BETWEEN ? AND ?', $query->sql);
+        self::assertSame([1, 18, 65], $query->bindings);
+    }
+
+    #[Test]
+    public function it_counts_a_raw_expression(): void
+    {
+        $query = $this->grammar->compileCount(
+            $this->select(wheres: [
+                new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And),
+            ]),
+            new RawExpression('DISTINCT NULLIF(role, ?)', ['guest']),
+        );
+
+        self::assertSame(
+            'SELECT COUNT(DISTINCT NULLIF(role, ?)) AS `aggregate` FROM `users` WHERE `active` = ?',
+            $query->sql,
+        );
+        self::assertSame(['guest', 1], $query->bindings);
+    }
+
+    #[Test]
+    public function it_rejects_an_expression_it_does_not_know(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(sprintf('Unsupported expression [%s].', UnsupportedExpression::class));
+
+        $this->grammar->compileSelect($this->select(columns: [new UnsupportedExpression()]));
     }
 
     #[Test]
     public function it_compares_a_column_to_a_binding(): void
     {
         $query = $this->grammar->compileSelect($this->select(wheres: [
-            new Where(new Expression('name'), ComparisonOperator::Equal, 'Ada', BooleanOperator::And),
+            new Where(new Identifier('name'), ComparisonOperator::Equal, 'Ada', BooleanOperator::And),
         ]));
 
         self::assertSame('SELECT * FROM `users` WHERE `name` = ?', $query->sql);
@@ -113,9 +269,9 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     public function it_joins_conditions_with_their_own_boolean(): void
     {
         $query = $this->grammar->compileSelect($this->select(wheres: [
-            new Where(new Expression('name'), ComparisonOperator::Equal, 'Ada', BooleanOperator::And),
-            new Where(new Expression('active'), ComparisonOperator::Equal, 1, BooleanOperator::Or),
-            new Where(new Expression('age'), ComparisonOperator::GreaterThan, 18, BooleanOperator::And),
+            new Where(new Identifier('name'), ComparisonOperator::Equal, 'Ada', BooleanOperator::And),
+            new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::Or),
+            new Where(new Identifier('age'), ComparisonOperator::GreaterThan, 18, BooleanOperator::And),
         ]));
 
         self::assertSame('SELECT * FROM `users` WHERE `name` = ? OR `active` = ? AND `age` > ?', $query->sql);
@@ -128,7 +284,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT * FROM `users` WHERE `deleted_at` IS NULL',
             $this->grammar->compileSelect($this->select(wheres: [
-                new WhereNull(new Expression('deleted_at'), false, BooleanOperator::And),
+                new WhereNull(new Identifier('deleted_at'), false, BooleanOperator::And),
             ]))->sql,
         );
     }
@@ -139,7 +295,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT * FROM `users` WHERE `deleted_at` IS NOT NULL',
             $this->grammar->compileSelect($this->select(wheres: [
-                new WhereNull(new Expression('deleted_at'), true, BooleanOperator::And),
+                new WhereNull(new Identifier('deleted_at'), true, BooleanOperator::And),
             ]))->sql,
         );
     }
@@ -148,7 +304,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     public function it_tests_for_membership(): void
     {
         $query = $this->grammar->compileSelect($this->select(wheres: [
-            new WhereIn(new Expression('id'), [1, 2, 3], false, BooleanOperator::And),
+            new WhereIn(new Identifier('id'), [1, 2, 3], false, BooleanOperator::And),
         ]));
 
         self::assertSame('SELECT * FROM `users` WHERE `id` IN (?, ?, ?)', $query->sql);
@@ -161,7 +317,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT * FROM `users` WHERE `id` NOT IN (?)',
             $this->grammar->compileSelect($this->select(wheres: [
-                new WhereIn(new Expression('id'), [1], true, BooleanOperator::And),
+                new WhereIn(new Identifier('id'), [1], true, BooleanOperator::And),
             ]))->sql,
         );
     }
@@ -170,7 +326,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     public function it_never_matches_an_empty_membership_test(): void
     {
         $query = $this->grammar->compileSelect($this->select(wheres: [
-            new WhereIn(new Expression('id'), [], false, BooleanOperator::And),
+            new WhereIn(new Identifier('id'), [], false, BooleanOperator::And),
         ]));
 
         self::assertSame('SELECT * FROM `users` WHERE 1 = 0', $query->sql);
@@ -183,7 +339,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT * FROM `users` WHERE 1 = 1',
             $this->grammar->compileSelect($this->select(wheres: [
-                new WhereIn(new Expression('id'), [], true, BooleanOperator::And),
+                new WhereIn(new Identifier('id'), [], true, BooleanOperator::And),
             ]))->sql,
         );
     }
@@ -192,7 +348,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     public function it_tests_a_range(): void
     {
         $query = $this->grammar->compileSelect($this->select(wheres: [
-            new WhereBetween(new Expression('age'), 18, 65, false, BooleanOperator::And),
+            new WhereBetween(new Identifier('age'), 18, 65, false, BooleanOperator::And),
         ]));
 
         self::assertSame('SELECT * FROM `users` WHERE `age` BETWEEN ? AND ?', $query->sql);
@@ -205,7 +361,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT * FROM `users` WHERE `age` NOT BETWEEN ? AND ?',
             $this->grammar->compileSelect($this->select(wheres: [
-                new WhereBetween(new Expression('age'), 18, 65, true, BooleanOperator::And),
+                new WhereBetween(new Identifier('age'), 18, 65, true, BooleanOperator::And),
             ]))->sql,
         );
     }
@@ -215,9 +371,9 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     {
         $query = $this->grammar->compileSelect($this->select(wheres: [
             new WhereColumn(
-                new Expression('created_at'),
+                new Identifier('created_at'),
                 ComparisonOperator::LessThan,
-                new Expression('updated_at'),
+                new Identifier('updated_at'),
                 BooleanOperator::And,
             ),
         ]));
@@ -230,10 +386,10 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     public function it_groups_nested_conditions(): void
     {
         $query = $this->grammar->compileSelect($this->select(wheres: [
-            new Where(new Expression('active'), ComparisonOperator::Equal, 1, BooleanOperator::And),
+            new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And),
             new NestedWhere([
-                new Where(new Expression('name'), ComparisonOperator::Equal, 'Ada', BooleanOperator::And),
-                new Where(new Expression('name'), ComparisonOperator::Equal, 'Grace', BooleanOperator::Or),
+                new Where(new Identifier('name'), ComparisonOperator::Equal, 'Ada', BooleanOperator::And),
+                new Where(new Identifier('name'), ComparisonOperator::Equal, 'Grace', BooleanOperator::Or),
             ], BooleanOperator::And),
         ]));
 
@@ -244,15 +400,15 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     #[Test]
     public function it_tests_for_a_matching_subquery(): void
     {
-        $subquery = $this->select(table: 'posts', columns: $this->columns('id'), wheres: [new Where(
-            new Expression('posts.views'),
+        $subquery = $this->select(table: new Identifier('posts'), columns: $this->columns('id'), wheres: [new Where(
+            new Identifier('posts.views'),
             ComparisonOperator::GreaterThan,
             10,
             BooleanOperator::And,
         )]);
 
         $query = $this->grammar->compileSelect($this->select(wheres: [
-            new Where(new Expression('active'), ComparisonOperator::Equal, 1, BooleanOperator::And),
+            new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And),
             new WhereExists($subquery, false, BooleanOperator::And),
         ]));
 
@@ -267,7 +423,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     public function it_tests_for_a_missing_subquery(): void
     {
         $query = $this->grammar->compileSelect($this->select(wheres: [
-            new WhereExists($this->select(table: 'posts'), true, BooleanOperator::And),
+            new WhereExists($this->select(table: new Identifier('posts')), true, BooleanOperator::And),
         ]));
 
         self::assertSame('SELECT * FROM `users` WHERE NOT EXISTS (SELECT * FROM `posts`)', $query->sql);
@@ -280,10 +436,10 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
             'SELECT * FROM `users` INNER JOIN `posts` ON `users`.`id` = `posts`.`user_id`',
             $this->grammar->compileSelect($this->select(joins: [
                 new JoinClause(
-                    'posts',
-                    new Expression('users.id'),
+                    new Identifier('posts'),
+                    new Identifier('users.id'),
                     ComparisonOperator::Equal,
-                    new Expression('posts.user_id'),
+                    new Identifier('posts.user_id'),
                     JoinType::Inner,
                 ),
             ]))->sql,
@@ -298,17 +454,17 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
             . ' RIGHT JOIN `teams` ON `users`.`team_id` = `teams`.`id`',
             $this->grammar->compileSelect($this->select(joins: [
                 new JoinClause(
-                    'posts',
-                    new Expression('users.id'),
+                    new Identifier('posts'),
+                    new Identifier('users.id'),
                     ComparisonOperator::Equal,
-                    new Expression('posts.user_id'),
+                    new Identifier('posts.user_id'),
                     JoinType::Left,
                 ),
                 new JoinClause(
-                    'teams',
-                    new Expression('users.team_id'),
+                    new Identifier('teams'),
+                    new Identifier('users.team_id'),
                     ComparisonOperator::Equal,
-                    new Expression('teams.id'),
+                    new Identifier('teams.id'),
                     JoinType::Right,
                 ),
             ]))->sql,
@@ -323,10 +479,10 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
 
         $this->grammar->compileSelect($this->select(joins: [
             new JoinClause(
-                'posts',
-                new Expression('users.id'),
+                new Identifier('posts'),
+                new Identifier('users.id'),
                 ComparisonOperator::Equal,
-                new Expression('posts.user_id'),
+                new Identifier('posts.user_id'),
                 JoinType::Full,
             ),
         ]));
@@ -338,7 +494,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
         $query = $this->grammar->compileSelect($this->select(
             columns: $this->columns('role'),
             groups: $this->columns('role'),
-            havings: [new Where(new Expression('role'), ComparisonOperator::NotEqual, 'guest', BooleanOperator::And)],
+            havings: [new Where(new Identifier('role'), ComparisonOperator::NotEqual, 'guest', BooleanOperator::And)],
         ));
 
         self::assertSame('SELECT `role` FROM `users` GROUP BY `role` HAVING `role` != ?', $query->sql);
@@ -351,8 +507,8 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT * FROM `users` ORDER BY `name` ASC, `created_at` DESC',
             $this->grammar->compileSelect($this->select(orders: [
-                new OrderBy(new Expression('name'), OrderDirection::Ascending),
-                new OrderBy(new Expression('created_at'), OrderDirection::Descending),
+                new OrderBy(new Identifier('name'), OrderDirection::Ascending),
+                new OrderBy(new Identifier('created_at'), OrderDirection::Descending),
             ]))->sql,
         );
     }
@@ -391,17 +547,17 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
             columns: $this->columns('users.name'),
             joins: [
                 new JoinClause(
-                    'posts',
-                    new Expression('users.id'),
+                    new Identifier('posts'),
+                    new Identifier('users.id'),
                     ComparisonOperator::Equal,
-                    new Expression('posts.user_id'),
+                    new Identifier('posts.user_id'),
                     JoinType::Inner,
                 ),
             ],
-            wheres: [new Where(new Expression('users.active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
+            wheres: [new Where(new Identifier('users.active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
             groups: $this->columns('users.name'),
-            havings: [new Where(new Expression('total'), ComparisonOperator::GreaterThan, 2, BooleanOperator::And)],
-            orders: [new OrderBy(new Expression('users.name'), OrderDirection::Ascending)],
+            havings: [new Where(new Identifier('total'), ComparisonOperator::GreaterThan, 2, BooleanOperator::And)],
+            orders: [new OrderBy(new Identifier('users.name'), OrderDirection::Ascending)],
             limit: 5,
             offset: 10,
         ));
@@ -419,7 +575,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     public function it_compiles_an_existence_check(): void
     {
         $query = $this->grammar->compileExists($this->select(wheres: [new Where(
-            new Expression('active'),
+            new Identifier('active'),
             ComparisonOperator::Equal,
             1,
             BooleanOperator::And,
@@ -432,7 +588,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     #[Test]
     public function it_counts_rows(): void
     {
-        $query = $this->grammar->compileCount($this->select(), new Expression('*'));
+        $query = $this->grammar->compileCount($this->select(), new Identifier('*'));
 
         self::assertSame('SELECT COUNT(*) AS `aggregate` FROM `users`', $query->sql);
         self::assertSame([], $query->bindings);
@@ -443,7 +599,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     {
         self::assertSame(
             'SELECT COUNT(`name`) AS `aggregate` FROM `users`',
-            $this->grammar->compileCount($this->select(), new Expression('name'))->sql,
+            $this->grammar->compileCount($this->select(), new Identifier('name'))->sql,
         );
     }
 
@@ -452,12 +608,12 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     {
         $query = $this->grammar->compileCount(
             $this->select(
-                wheres: [new Where(new Expression('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
-                orders: [new OrderBy(new Expression('name'), OrderDirection::Ascending)],
+                wheres: [new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
+                orders: [new OrderBy(new Identifier('name'), OrderDirection::Ascending)],
                 limit: 10,
                 offset: 5,
             ),
-            new Expression('*'),
+            new Identifier('*'),
         );
 
         self::assertSame('SELECT COUNT(*) AS `aggregate` FROM `users` WHERE `active` = ?', $query->sql);
@@ -470,10 +626,10 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
         $query = $this->grammar->compileCount(
             $this->select(
                 columns: $this->columns('role'),
-                wheres: [new Where(new Expression('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
+                wheres: [new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
                 groups: $this->columns('role'),
             ),
-            new Expression('*'),
+            new Identifier('*'),
         );
 
         self::assertSame(
@@ -489,7 +645,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     {
         $query = $this->grammar->compileCount(
             $this->select(groups: $this->columns('role', 'team')),
-            new Expression('*'),
+            new Identifier('*'),
         );
 
         self::assertSame(
@@ -502,7 +658,10 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     #[Test]
     public function it_inserts_a_row(): void
     {
-        $query = $this->grammar->compileInsert(new InsertQuery('users', [['name' => 'Ada', 'active' => 1]]));
+        $query = $this->grammar->compileInsert(new InsertQuery(new Identifier('users'), [[
+            'name' => 'Ada',
+            'active' => 1,
+        ]]));
 
         self::assertSame('INSERT INTO `users` (`name`, `active`) VALUES (?, ?)', $query->sql);
         self::assertSame(['Ada', 1], $query->bindings);
@@ -511,7 +670,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     #[Test]
     public function it_inserts_several_rows(): void
     {
-        $query = $this->grammar->compileInsert(new InsertQuery('users', [
+        $query = $this->grammar->compileInsert(new InsertQuery(new Identifier('users'), [
             ['name' => 'Ada', 'active' => 1],
             ['name' => 'Grace', 'active' => 0],
         ]));
@@ -523,7 +682,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     #[Test]
     public function it_inserts_a_null_value(): void
     {
-        $query = $this->grammar->compileInsert(new InsertQuery('users', [['name' => null]]));
+        $query = $this->grammar->compileInsert(new InsertQuery(new Identifier('users'), [['name' => null]]));
 
         self::assertSame('INSERT INTO `users` (`name`) VALUES (?)', $query->sql);
         self::assertSame([null], $query->bindings);
@@ -533,9 +692,9 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     public function it_updates_rows(): void
     {
         $query = $this->grammar->compileUpdate(new UpdateQuery(
-            table: 'users',
+            table: new Identifier('users'),
             values: ['name' => 'Ada', 'active' => 1],
-            wheres: [new Where(new Expression('id'), ComparisonOperator::Equal, 7, BooleanOperator::And)],
+            wheres: [new Where(new Identifier('id'), ComparisonOperator::Equal, 7, BooleanOperator::And)],
             limit: null,
         ));
 
@@ -547,7 +706,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     public function it_updates_every_row(): void
     {
         $query = $this->grammar->compileUpdate(new UpdateQuery(
-            table: 'users',
+            table: new Identifier('users'),
             values: ['active' => 0],
             wheres: [],
             limit: null,
@@ -561,9 +720,9 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     public function it_limits_an_update(): void
     {
         $query = $this->grammar->compileUpdate(new UpdateQuery(
-            table: 'users',
+            table: new Identifier('users'),
             values: ['active' => 0],
-            wheres: [new Where(new Expression('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
+            wheres: [new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
             limit: 1,
         ));
 
@@ -575,8 +734,8 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     public function it_deletes_rows(): void
     {
         $query = $this->grammar->compileDelete(new DeleteQuery(
-            table: 'users',
-            wheres: [new Where(new Expression('id'), ComparisonOperator::Equal, 7, BooleanOperator::And)],
+            table: new Identifier('users'),
+            wheres: [new Where(new Identifier('id'), ComparisonOperator::Equal, 7, BooleanOperator::And)],
             limit: null,
         ));
 
@@ -589,7 +748,11 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     {
         self::assertSame(
             'DELETE FROM `users`',
-            $this->grammar->compileDelete(new DeleteQuery(table: 'users', wheres: [], limit: null))->sql,
+            $this->grammar->compileDelete(new DeleteQuery(
+                table: new Identifier('users'),
+                wheres: [],
+                limit: null,
+            ))->sql,
         );
     }
 
@@ -598,7 +761,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     {
         self::assertSame(
             'DELETE FROM `users` LIMIT 5',
-            $this->grammar->compileDelete(new DeleteQuery(table: 'users', wheres: [], limit: 5))->sql,
+            $this->grammar->compileDelete(new DeleteQuery(table: new Identifier('users'), wheres: [], limit: 5))->sql,
         );
     }
 }

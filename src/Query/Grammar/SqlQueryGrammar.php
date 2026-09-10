@@ -21,7 +21,9 @@ use Dirthara\Database\Query\Queries\InsertQuery;
 use Dirthara\Database\Query\Queries\SelectQuery;
 use Dirthara\Database\Query\Queries\UpdateQuery;
 use Dirthara\Database\Query\Expression\Expression;
+use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
+use Dirthara\Database\Query\Expression\RawExpression;
 
 use function count;
 use function explode;
@@ -29,7 +31,6 @@ use function implode;
 use function sprintf;
 use function array_map;
 use function array_keys;
-use function preg_match;
 use function array_merge;
 use function str_replace;
 use function array_values;
@@ -64,7 +65,8 @@ abstract class SqlQueryGrammar implements QueryGrammar
         $counted = $this->counted($query);
 
         if ($query->groups !== []) {
-            $inner = $this->compileSelectSql($counted, $bindings, $this->groupedColumns($query));
+            $grouped = $this->groupedColumns($query, $bindings);
+            $inner = $this->compileSelectSql($counted, $bindings, $grouped);
 
             return new CompiledQuery(
                 sprintf(
@@ -77,11 +79,8 @@ abstract class SqlQueryGrammar implements QueryGrammar
             );
         }
 
-        $sql = $this->compileSelectSql(
-            $counted,
-            $bindings,
-            sprintf('COUNT(%s) AS %s', $this->wrap($column), $this->quote('aggregate')),
-        );
+        $counting = sprintf('COUNT(%s) AS %s', $this->wrap($column, $bindings), $this->quote('aggregate'));
+        $sql = $this->compileSelectSql($counted, $bindings, $counting);
 
         return new CompiledQuery($sql, $bindings);
     }
@@ -93,6 +92,7 @@ abstract class SqlQueryGrammar implements QueryGrammar
 
         $bindings = [];
         $tuples = [];
+        $table = $this->wrap($query->table, $bindings);
 
         foreach ($rows as $row) {
             foreach ($columns as $column) {
@@ -105,7 +105,7 @@ abstract class SqlQueryGrammar implements QueryGrammar
         return new CompiledQuery(
             sprintf(
                 'INSERT INTO %s (%s) VALUES %s',
-                $this->wrapTable($query->table),
+                $table,
                 implode(', ', array_map($this->quote(...), $columns)),
                 implode(', ', $tuples),
             ),
@@ -121,6 +121,7 @@ abstract class SqlQueryGrammar implements QueryGrammar
 
         $bindings = [];
         $assignments = [];
+        $table = $this->wrap($query->table, $bindings);
 
         foreach ($query->values as $column => $value) {
             $assignments[] = sprintf('%s = ?', $this->quote($column));
@@ -130,7 +131,7 @@ abstract class SqlQueryGrammar implements QueryGrammar
         [$top, $suffix] = $this->compileMutationLimit($query->limit, 'update');
 
         $sql =
-            sprintf('UPDATE%s %s SET %s', $top, $this->wrapTable($query->table), implode(', ', $assignments))
+            sprintf('UPDATE%s %s SET %s', $top, $table, implode(', ', $assignments))
             . $this->compileWhereSection(array_values($query->wheres), $bindings);
 
         return new CompiledQuery($sql . $suffix, $bindings);
@@ -142,8 +143,10 @@ abstract class SqlQueryGrammar implements QueryGrammar
 
         [$top, $suffix] = $this->compileMutationLimit($query->limit, 'delete');
 
+        $table = $this->wrap($query->table, $bindings);
+
         $sql =
-            sprintf('DELETE%s FROM %s', $top, $this->wrapTable($query->table))
+            sprintf('DELETE%s FROM %s', $top, $table)
             . $this->compileWhereSection(array_values($query->wheres), $bindings);
 
         return new CompiledQuery($sql . $suffix, $bindings);
@@ -154,28 +157,45 @@ abstract class SqlQueryGrammar implements QueryGrammar
      */
     protected function compileSelectSql(SelectQuery $query, array &$bindings, ?string $columns = null): string
     {
+        $columns ??= $this->compileExpressions($query->columns, $bindings);
+
         $sql = sprintf(
             'SELECT %s%s FROM %s',
             $this->compileTop($query),
-            $columns ?? implode(', ', array_map($this->wrap(...), $query->columns)),
-            $this->wrapTable($query->table),
+            $columns,
+            $this->wrap($query->table, $bindings),
         );
 
         foreach ($query->joins as $join) {
-            $sql .= ' ' . $this->compileJoin($join);
+            $sql .= ' ' . $this->compileJoin($join, $bindings);
         }
 
         $sql .= $this->compileWhereSection($query->wheres, $bindings);
 
         if ($query->groups !== []) {
-            $sql .= ' GROUP BY ' . implode(', ', array_map($this->wrap(...), $query->groups));
+            $sql .= ' GROUP BY ' . $this->compileExpressions($query->groups, $bindings);
         }
 
         if ($query->havings !== []) {
             $sql .= ' HAVING ' . $this->compileWheres($query->havings, $bindings);
         }
 
-        return $sql . $this->compileOrders($query) . $this->compileLimit($query);
+        return $sql . $this->compileOrders($query, $bindings) . $this->compileLimit($query);
+    }
+
+    /**
+     * @param list<Expression> $expressions
+     * @param list<scalar|null> $bindings
+     */
+    protected function compileExpressions(array $expressions, array &$bindings): string
+    {
+        $compiled = [];
+
+        foreach ($expressions as $expression) {
+            $compiled[] = $this->wrap($expression, $bindings);
+        }
+
+        return implode(', ', $compiled);
     }
 
     protected function compileTop(SelectQuery $query): string
@@ -183,30 +203,45 @@ abstract class SqlQueryGrammar implements QueryGrammar
         return '';
     }
 
-    protected function compileOrders(SelectQuery $query): string
+    /**
+     * @param list<scalar|null> $bindings
+     */
+    protected function compileOrders(SelectQuery $query, array &$bindings): string
     {
         if ($query->orders === []) {
             return '';
         }
 
-        return ' ORDER BY ' . implode(', ', array_map($this->compileOrder(...), $query->orders));
+        $compiled = [];
+
+        foreach ($query->orders as $order) {
+            $compiled[] = $this->compileOrder($order, $bindings);
+        }
+
+        return ' ORDER BY ' . implode(', ', $compiled);
     }
 
-    protected function compileJoin(JoinClause $join): string
+    /**
+     * @param list<scalar|null> $bindings
+     */
+    protected function compileJoin(JoinClause $join, array &$bindings): string
     {
         return sprintf(
             '%s %s ON %s %s %s',
             $join->type->value,
-            $this->wrapTable($join->table),
-            $this->wrap($join->first),
+            $this->wrap($join->table, $bindings),
+            $this->wrap($join->first, $bindings),
             $join->operator->value,
-            $this->wrap($join->second),
+            $this->wrap($join->second, $bindings),
         );
     }
 
-    protected function compileOrder(OrderBy $order): string
+    /**
+     * @param list<scalar|null> $bindings
+     */
+    protected function compileOrder(OrderBy $order, array &$bindings): string
     {
-        return sprintf('%s %s', $this->wrap($order->column), $order->direction->value);
+        return sprintf('%s %s', $this->wrap($order->column, $bindings), $order->direction->value);
     }
 
     protected function compileLimit(SelectQuery $query): string
@@ -280,16 +315,16 @@ abstract class SqlQueryGrammar implements QueryGrammar
             $where instanceof Where => $this->compileBasicWhere($where, $bindings),
             $where instanceof WhereNull => sprintf(
                 '%s IS %sNULL',
-                $this->wrap($where->column),
+                $this->wrap($where->column, $bindings),
                 $where->negated ? 'NOT ' : '',
             ),
             $where instanceof WhereIn => $this->compileWhereIn($where, $bindings),
             $where instanceof WhereBetween => $this->compileWhereBetween($where, $bindings),
             $where instanceof WhereColumn => sprintf(
                 '%s %s %s',
-                $this->wrap($where->first),
+                $this->wrap($where->first, $bindings),
                 $where->operator->value,
-                $this->wrap($where->second),
+                $this->wrap($where->second, $bindings),
             ),
             $where instanceof NestedWhere => sprintf('(%s)', $this->compileWheres($where->wheres, $bindings)),
             $where instanceof WhereExists => $this->compileWhereExists($where, $bindings),
@@ -324,42 +359,51 @@ abstract class SqlQueryGrammar implements QueryGrammar
     /**
      * The columns a grouped count selects: the groups themselves, unless columns were chosen.
      */
-    private function groupedColumns(SelectQuery $query): ?string
+    /**
+     * @param list<scalar|null> $bindings
+     */
+    private function groupedColumns(SelectQuery $query, array &$bindings): ?string
     {
         foreach ($query->columns as $column) {
-            if ($column->expression !== '*') {
+            if (!$column instanceof Identifier || $column->name !== '*') {
                 return null;
             }
         }
 
-        return implode(', ', array_map($this->wrap(...), $query->groups));
+        return $this->compileExpressions($query->groups, $bindings);
     }
 
     abstract protected function quote(string $identifier): string;
 
-    protected function wrap(Expression $expression): string
+    /**
+     * @param list<scalar|null> $bindings
+     */
+    protected function wrap(Expression $expression, array &$bindings): string
     {
-        $segments = explode('.', $expression->expression);
-
-        foreach ($segments as $segment) {
-            if (!$this->isIdentifier($segment)) {
-                return $expression->expression;
-            }
+        if ($expression instanceof Identifier) {
+            return $this->quoteSegments($expression->name);
         }
 
-        return implode('.', array_map(fn(string $segment): string => $segment === '*'
-            ? '*'
-            : $this->quote($segment), $segments));
+        if ($expression instanceof RawExpression) {
+            foreach ($expression->bindings as $binding) {
+                $bindings[] = $binding;
+            }
+
+            return $expression->sql;
+        }
+
+        throw new LogicException(sprintf('Unsupported expression [%s].', $expression::class));
     }
 
-    protected function wrapTable(string $table): string
+    private function quoteSegments(string $name): string
     {
-        return $this->wrap(new Expression($table));
-    }
+        $segments = [];
 
-    private function isIdentifier(string $segment): bool
-    {
-        return $segment === '*' || preg_match('/^[A-Za-z_][A-Za-z0-9_$]*$/', $segment) === 1;
+        foreach (explode('.', $name) as $segment) {
+            $segments[] = $segment === '*' ? '*' : $this->quote($segment);
+        }
+
+        return implode('.', $segments);
     }
 
     protected function escape(string $identifier, string $open, ?string $close = null): string
@@ -374,9 +418,10 @@ abstract class SqlQueryGrammar implements QueryGrammar
      */
     private function compileBasicWhere(Where $where, array &$bindings): string
     {
+        $column = $this->wrap($where->column, $bindings);
         $bindings[] = $this->binding($where->value);
 
-        return sprintf('%s %s ?', $this->wrap($where->column), $where->operator->value);
+        return sprintf('%s %s ?', $column, $where->operator->value);
     }
 
     /**
@@ -388,13 +433,15 @@ abstract class SqlQueryGrammar implements QueryGrammar
             return $where->negated ? '1 = 1' : '1 = 0';
         }
 
+        $column = $this->wrap($where->column, $bindings);
+
         foreach ($where->values as $value) {
             $bindings[] = $this->binding($value);
         }
 
         return sprintf(
             '%s %sIN (%s)',
-            $this->wrap($where->column),
+            $column,
             $where->negated ? 'NOT ' : '',
             implode(', ', array_map(static fn(): string => '?', $where->values)),
         );
@@ -405,10 +452,12 @@ abstract class SqlQueryGrammar implements QueryGrammar
      */
     private function compileWhereBetween(WhereBetween $where, array &$bindings): string
     {
+        $column = $this->wrap($where->column, $bindings);
+
         $bindings[] = $this->binding($where->from);
         $bindings[] = $this->binding($where->to);
 
-        return sprintf('%s %sBETWEEN ? AND ?', $this->wrap($where->column), $where->negated ? 'NOT ' : '');
+        return sprintf('%s %sBETWEEN ? AND ?', $column, $where->negated ? 'NOT ' : '');
     }
 
     /**

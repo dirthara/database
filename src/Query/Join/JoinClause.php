@@ -10,7 +10,7 @@ use Dirthara\Database\Query\Operator\ComparisonOperator;
 final readonly class JoinClause
 {
     public function __construct(
-        public string $table,
+        public Expression $table,
         public Expression $first,
         public ComparisonOperator $operator,
         public Expression $second,

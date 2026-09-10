@@ -11,6 +11,7 @@ use Dirthara\Database\Query\Join\JoinClause;
 use Dirthara\Database\Query\Clause\WhereClause;
 use Dirthara\Database\Query\Queries\SelectQuery;
 use Dirthara\Database\Query\Expression\Expression;
+use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Operator\ComparisonOperator;
 
 abstract class GrammarTestCase extends TestCase
@@ -24,7 +25,7 @@ abstract class GrammarTestCase extends TestCase
      * @param list<OrderBy> $orders
      */
     protected function select(
-        string $table = 'users',
+        string|Expression $table = 'users',
         array $columns = [],
         array $joins = [],
         array $wheres = [],
@@ -35,8 +36,8 @@ abstract class GrammarTestCase extends TestCase
         ?int $offset = null,
     ): SelectQuery {
         return new SelectQuery(
-            table: $table,
-            columns: $columns === [] ? [new Expression('*')] : $columns,
+            table: Identifier::wrap($table),
+            columns: $columns === [] ? [new Identifier('*')] : $columns,
             joins: $joins,
             wheres: $wheres,
             groups: $groups,
@@ -50,10 +51,10 @@ abstract class GrammarTestCase extends TestCase
     protected function join(JoinType $type, string $table = 'posts'): JoinClause
     {
         return new JoinClause(
-            table: $table,
-            first: new Expression('users.id'),
+            table: Identifier::wrap($table),
+            first: new Identifier('users.id'),
             operator: ComparisonOperator::Equal,
-            second: new Expression($table . '.user_id'),
+            second: new Identifier($table . '.user_id'),
             type: $type,
         );
     }
@@ -63,6 +64,6 @@ abstract class GrammarTestCase extends TestCase
      */
     protected function columns(string ...$columns): array
     {
-        return array_map(static fn(string $column): Expression => new Expression($column), array_values($columns));
+        return array_map(Identifier::wrap(...), array_values($columns));
     }
 }
