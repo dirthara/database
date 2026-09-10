@@ -434,6 +434,21 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
     }
 
     #[Test]
+    public function it_builds_a_subquery_from_the_builder_itself(): void
+    {
+        $builder = $this->builder('users');
+
+        $wheres = $builder
+            ->whereExists($builder->newQuery('posts')->select('id')->whereColumn('posts.user_id', '=', 'users.id'))
+            ->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereExists::class, $wheres[0]);
+
+        self::assertEquals(new Identifier('posts'), $where->query->table);
+        self::assertCount(1, $where->query->wheres);
+    }
+
+    #[Test]
     public function it_tests_for_a_matching_subquery(): void
     {
         $subquery = $this->builder('posts')->select('id')->whereColumn('posts.user_id', '=', 'users.id');

@@ -74,6 +74,45 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     }
 
     #[Test]
+    public function it_opens_a_query_for_another_table(): void
+    {
+        $builder = $this->builder('users');
+        $subquery = $builder->newQuery('posts');
+
+        self::assertNotSame($builder, $subquery);
+        self::assertEquals(new Identifier('posts'), $subquery->toSelectQuery()->table);
+    }
+
+    #[Test]
+    public function it_opens_a_query_that_carries_none_of_the_original_clauses(): void
+    {
+        $subquery = $this->builder('users')->select('id')->where('active', '=', 1)->limit(5)->newQuery('posts');
+
+        $query = $subquery->toSelectQuery();
+
+        self::assertSame([], $query->wheres);
+        self::assertNull($query->limit);
+        self::assertEquals([new Identifier('*')], $query->columns);
+    }
+
+    #[Test]
+    public function it_opens_a_query_for_a_table_expression(): void
+    {
+        $subquery = $this->builder()->newQuery('posts as p');
+
+        self::assertEquals(new Aliased(new Identifier('posts'), 'p'), $subquery->toSelectQuery()->table);
+    }
+
+    #[Test]
+    public function it_rejects_an_empty_table_for_a_new_query(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('A query table cannot be empty.');
+
+        $this->builder()->newQuery('');
+    }
+
+    #[Test]
     public function it_selects_every_column_by_default(): void
     {
         $columns = $this->builder()->toSelectQuery()->columns;

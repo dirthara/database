@@ -85,6 +85,11 @@ final class QueryBuilder
         $this->table = ExpressionFactory::from($table);
     }
 
+    public function newQuery(string|Expression $table): self
+    {
+        return new self(connection: $this->connection, grammar: $this->grammar, table: $table);
+    }
+
     public function select(string|Expression ...$columns): self
     {
         $this->columns = array_values(array_map(ExpressionFactory::from(...), $columns));
@@ -121,46 +126,22 @@ final class QueryBuilder
 
     public function whereNull(string|Expression $column): self
     {
-        $this->wheres[] = new WhereNull(
-            column: ExpressionFactory::from($column),
-            negated: false,
-            boolean: BooleanOperator::And,
-        );
-
-        return $this;
+        return $this->addWhereNull($column, false, BooleanOperator::And);
     }
 
     public function orWhereNull(string|Expression $column): self
     {
-        $this->wheres[] = new WhereNull(
-            column: ExpressionFactory::from($column),
-            negated: false,
-            boolean: BooleanOperator::Or,
-        );
-
-        return $this;
+        return $this->addWhereNull($column, false, BooleanOperator::Or);
     }
 
     public function whereNotNull(string|Expression $column): self
     {
-        $this->wheres[] = new WhereNull(
-            column: ExpressionFactory::from($column),
-            negated: true,
-            boolean: BooleanOperator::And,
-        );
-
-        return $this;
+        return $this->addWhereNull($column, true, BooleanOperator::And);
     }
 
     public function orWhereNotNull(string|Expression $column): self
     {
-        $this->wheres[] = new WhereNull(
-            column: ExpressionFactory::from($column),
-            negated: true,
-            boolean: BooleanOperator::Or,
-        );
-
-        return $this;
+        return $this->addWhereNull($column, true, BooleanOperator::Or);
     }
 
     /**
@@ -220,14 +201,7 @@ final class QueryBuilder
         string|ComparisonOperator $operator,
         string|Expression $second,
     ): self {
-        $this->wheres[] = new WhereColumn(
-            first: ExpressionFactory::from($first),
-            operator: ComparisonOperator::parse($operator),
-            second: ExpressionFactory::from($second),
-            boolean: BooleanOperator::And,
-        );
-
-        return $this;
+        return $this->addWhereColumn($first, $operator, $second, BooleanOperator::And);
     }
 
     public function orWhereColumn(
@@ -235,14 +209,7 @@ final class QueryBuilder
         string|ComparisonOperator $operator,
         string|Expression $second,
     ): self {
-        $this->wheres[] = new WhereColumn(
-            first: ExpressionFactory::from($first),
-            operator: ComparisonOperator::parse($operator),
-            second: ExpressionFactory::from($second),
-            boolean: BooleanOperator::Or,
-        );
-
-        return $this;
+        return $this->addWhereColumn($first, $operator, $second, BooleanOperator::Or);
     }
 
     public function whereNested(Closure $callback): self
@@ -589,23 +556,11 @@ final class QueryBuilder
 
         if ($value === null) {
             if ($operator->isEquality()) {
-                $this->wheres[] = new WhereNull(
-                    column: ExpressionFactory::from($column),
-                    negated: false,
-                    boolean: $boolean,
-                );
-
-                return $this;
+                return $this->addWhereNull($column, false, $boolean);
             }
 
             if ($operator->isInequality()) {
-                $this->wheres[] = new WhereNull(
-                    column: ExpressionFactory::from($column),
-                    negated: true,
-                    boolean: $boolean,
-                );
-
-                return $this;
+                return $this->addWhereNull($column, true, $boolean);
             }
 
             throw new InvalidArgumentException(sprintf(
@@ -644,6 +599,29 @@ final class QueryBuilder
         return $this;
     }
 
+    private function addWhereNull(string|Expression $column, bool $negated, BooleanOperator $boolean): self
+    {
+        $this->wheres[] = new WhereNull(column: ExpressionFactory::from($column), negated: $negated, boolean: $boolean);
+
+        return $this;
+    }
+
+    private function addWhereColumn(
+        string|Expression $first,
+        string|ComparisonOperator $operator,
+        string|Expression $second,
+        BooleanOperator $boolean,
+    ): self {
+        $this->wheres[] = new WhereColumn(
+            first: ExpressionFactory::from($first),
+            operator: ComparisonOperator::parse($operator),
+            second: ExpressionFactory::from($second),
+            boolean: $boolean,
+        );
+
+        return $this;
+    }
+
     private function addWhereBetween(
         string|Expression $column,
         mixed $from,
@@ -671,7 +649,7 @@ final class QueryBuilder
 
     private function addNestedWhere(BooleanOperator $boolean, Closure $callback): self
     {
-        $nested = new self(connection: $this->connection, grammar: $this->grammar, table: $this->table);
+        $nested = $this->newQuery($this->table);
 
         $callback($nested);
 
