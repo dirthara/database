@@ -12,7 +12,6 @@ use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Join\JoinType;
 use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Clause\WhereIn;
-
 use Dirthara\Database\Query\Clause\WhereNull;
 use Dirthara\Database\Query\Clause\NestedWhere;
 use Dirthara\Database\Query\Clause\WhereColumn;

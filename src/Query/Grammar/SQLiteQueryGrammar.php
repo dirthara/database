@@ -4,42 +4,26 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Query\Grammar;
 
-use Dirthara\Database\Query\Queries\DeleteQuery;
-use Dirthara\Database\Query\Queries\InsertQuery;
-use Dirthara\Database\Query\Queries\SelectQuery;
-use Dirthara\Database\Query\Queries\UpdateQuery;
-use Dirthara\Database\Query\Expression\Expression;
-use Dirthara\Database\Query\Queries\CompiledQuery;
+use function sprintf;
 
-class SQLiteQueryGrammar implements QueryGrammar
+final class SQLiteQueryGrammar extends SqlQueryGrammar
 {
-    public function compileSelect(SelectQuery $query): CompiledQuery
+    /**
+     * The row count SQLite reads as no limit, for an offset that has no limit of its own.
+     */
+    private const int UNLIMITED = -1;
+
+    protected function quote(string $identifier): string
     {
-        // TODO: Implement compileSelect() method.
+        return $this->escape($identifier, '"');
     }
 
-    public function compileExists(SelectQuery $query): CompiledQuery
+    protected function compileLimit(?int $limit, ?int $offset): string
     {
-        // TODO: Implement compileExists() method.
-    }
+        if ($offset === null) {
+            return $limit === null ? '' : sprintf(' LIMIT %d', $limit);
+        }
 
-    public function compileCount(SelectQuery $query, Expression $column): CompiledQuery
-    {
-        // TODO: Implement compileCount() method.
-    }
-
-    public function compileInsert(InsertQuery $query): CompiledQuery
-    {
-        // TODO: Implement compileInsert() method.
-    }
-
-    public function compileUpdate(UpdateQuery $query): CompiledQuery
-    {
-        // TODO: Implement compileUpdate() method.
-    }
-
-    public function compileDelete(DeleteQuery $query): CompiledQuery
-    {
-        // TODO: Implement compileDelete() method.
+        return sprintf(' LIMIT %d OFFSET %d', $limit ?? self::UNLIMITED, $offset);
     }
 }
