@@ -431,7 +431,10 @@ final class QueryBuilder
             return false;
         }
 
-        return (bool) reset($row);
+        // @mago-expect analysis:mixed-assignment
+        $value = reset($row);
+
+        return is_scalar($value) && (bool) $value;
     }
 
     /**
@@ -471,7 +474,7 @@ final class QueryBuilder
     }
 
     /**
-     * @param array<string, mixed> $values
+     * @param array<string, scalar|null> $values
      *
      * @throws QueryException
      * @throws ConnectionException
@@ -683,7 +686,7 @@ final class QueryBuilder
     }
 
     /**
-     * @param array<string, mixed>|list<array<string, mixed>> $values
+     * @param array<array-key, mixed> $values
      *
      * @return list<array<string, mixed>>
      *
@@ -692,6 +695,7 @@ final class QueryBuilder
     private function normaliseInsertRows(array $values): array
     {
         if (array_is_list($values)) {
+            // @mago-expect analysis:mixed-assignment
             foreach ($values as $row) {
                 if (!is_array($row)) {
                     throw new InvalidArgumentException('Bulk inserts must contain arrays of column values.');

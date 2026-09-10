@@ -131,12 +131,13 @@ abstract class SqlQueryGrammar implements QueryGrammar
 
         [$top, $suffix] = $this->compileMutationLimit($query->limit, 'update');
 
-        $sql =
-            sprintf('UPDATE%s %s SET %s', $top, $table, implode(', ', $assignments))
-            . $this->compileWhereSection(array_values($query->wheres), $bindings)
-            . $this->compileMutationOrders($query->orders, 'update', $bindings);
+        $wheres = $this->compileWhereSection(array_values($query->wheres), $bindings);
+        $orders = $this->compileMutationOrders($query->orders, 'update', $bindings);
 
-        return new CompiledQuery($sql . $suffix, $bindings);
+        return new CompiledQuery(
+            sprintf('UPDATE%s %s SET %s%s%s%s', $top, $table, implode(', ', $assignments), $wheres, $orders, $suffix),
+            $bindings,
+        );
     }
 
     public function compileDelete(DeleteQuery $query): CompiledQuery
@@ -147,12 +148,10 @@ abstract class SqlQueryGrammar implements QueryGrammar
 
         $table = $this->wrap($query->table, $bindings);
 
-        $sql =
-            sprintf('DELETE%s FROM %s', $top, $table)
-            . $this->compileWhereSection(array_values($query->wheres), $bindings)
-            . $this->compileMutationOrders($query->orders, 'delete', $bindings);
+        $wheres = $this->compileWhereSection(array_values($query->wheres), $bindings);
+        $orders = $this->compileMutationOrders($query->orders, 'delete', $bindings);
 
-        return new CompiledQuery($sql . $suffix, $bindings);
+        return new CompiledQuery(sprintf('DELETE%s FROM %s%s%s%s', $top, $table, $wheres, $orders, $suffix), $bindings);
     }
 
     /**

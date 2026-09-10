@@ -11,7 +11,7 @@ use Dirthara\Database\Query\Expression\Expression;
 final readonly class UpdateQuery
 {
     /**
-     * @param array<string, mixed> $values
+     * @param array<string, scalar|null> $values
      * @param array<WhereClause> $wheres
      * @param list<OrderBy> $orders
      */
