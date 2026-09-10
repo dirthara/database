@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Dirthara\Database\Tests\Query\Grammar;
 
 use PHPUnit\Framework\TestCase;
+use Dirthara\Database\Query\Join\JoinType;
 use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Join\JoinClause;
 use Dirthara\Database\Query\Clause\WhereClause;
 use Dirthara\Database\Query\Queries\SelectQuery;
 use Dirthara\Database\Query\Expression\Expression;
+use Dirthara\Database\Query\Operator\ComparisonOperator;
 
 abstract class GrammarTestCase extends TestCase
 {
@@ -42,6 +44,17 @@ abstract class GrammarTestCase extends TestCase
             orders: $orders,
             limit: $limit,
             offset: $offset,
+        );
+    }
+
+    protected function join(JoinType $type, string $table = 'posts'): JoinClause
+    {
+        return new JoinClause(
+            table: $table,
+            first: new Expression('users.id'),
+            operator: ComparisonOperator::Equal,
+            second: new Expression($table . '.user_id'),
+            type: $type,
         );
     }
 
