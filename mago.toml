@@ -19,3 +19,9 @@ enabled = false
 
 [linter.rules.excessive-parameter-list]
 enabled = false
+
+[linter.rules.cyclomatic-complexity]
+enabled = false
+
+[linter.rules.kan-defect]
+enabled = false

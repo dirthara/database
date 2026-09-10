@@ -4,42 +4,61 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Query\Grammar;
 
-use Dirthara\Database\Query\Queries\DeleteQuery;
-use Dirthara\Database\Query\Queries\InsertQuery;
 use Dirthara\Database\Query\Queries\SelectQuery;
-use Dirthara\Database\Query\Queries\UpdateQuery;
-use Dirthara\Database\Query\Expression\Expression;
-use Dirthara\Database\Query\Queries\CompiledQuery;
 
-class SqlServerQueryGrammar implements QueryGrammar
+use function sprintf;
+
+final class SqlServerQueryGrammar extends SqlQueryGrammar
 {
-    public function compileSelect(SelectQuery $query): CompiledQuery
+    protected function quote(string $identifier): string
     {
-        // TODO: Implement compileSelect() method.
+        return $this->escape($identifier, '[', ']');
     }
 
-    public function compileExists(SelectQuery $query): CompiledQuery
+    protected function compileTop(SelectQuery $query): string
     {
-        // TODO: Implement compileExists() method.
+        if ($query->limit === null || $query->offset !== null) {
+            return '';
+        }
+
+        return sprintf('TOP (%d) ', $query->limit);
     }
 
-    public function compileCount(SelectQuery $query, Expression $column): CompiledQuery
+    /**
+     * SQL Server only accepts OFFSET after an ORDER BY, so a paged query without one orders by nothing.
+     */
+    protected function compileOrders(SelectQuery $query): string
     {
-        // TODO: Implement compileCount() method.
+        if ($query->orders === [] && $query->offset !== null) {
+            return ' ORDER BY (SELECT NULL)';
+        }
+
+        return parent::compileOrders($query);
     }
 
-    public function compileInsert(InsertQuery $query): CompiledQuery
+    protected function compileLimit(SelectQuery $query): string
     {
-        // TODO: Implement compileInsert() method.
+        if ($query->offset === null) {
+            return '';
+        }
+
+        if ($query->limit === null) {
+            return sprintf(' OFFSET %d ROWS', $query->offset);
+        }
+
+        return sprintf(' OFFSET %d ROWS FETCH NEXT %d ROWS ONLY', $query->offset, $query->limit);
     }
 
-    public function compileUpdate(UpdateQuery $query): CompiledQuery
+    /**
+     * @return array{string, string}
+     */
+    protected function compileMutationLimit(?int $limit, string $operation): array
     {
-        // TODO: Implement compileUpdate() method.
+        return $limit === null ? ['', ''] : [sprintf(' TOP (%d)', $limit), ''];
     }
 
-    public function compileDelete(DeleteQuery $query): CompiledQuery
+    protected function wrapExists(string $select): string
     {
-        // TODO: Implement compileDelete() method.
+        return sprintf('SELECT CASE WHEN EXISTS(%s) THEN 1 ELSE 0 END AS %s', $select, $this->quote('exists'));
     }
 }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Query\Grammar;
 
+use Dirthara\Database\Query\Queries\SelectQuery;
+
 use function sprintf;
 
 final class SQLiteQueryGrammar extends SqlQueryGrammar
@@ -18,12 +20,12 @@ final class SQLiteQueryGrammar extends SqlQueryGrammar
         return $this->escape($identifier, '"');
     }
 
-    protected function compileLimit(?int $limit, ?int $offset): string
+    protected function compileLimit(SelectQuery $query): string
     {
-        if ($offset === null) {
-            return $limit === null ? '' : sprintf(' LIMIT %d', $limit);
+        if ($query->offset === null) {
+            return $query->limit === null ? '' : sprintf(' LIMIT %d', $query->limit);
         }
 
-        return sprintf(' LIMIT %d OFFSET %d', $limit ?? self::UNLIMITED, $offset);
+        return sprintf(' LIMIT %d OFFSET %d', $query->limit ?? self::UNLIMITED, $query->offset);
     }
 }

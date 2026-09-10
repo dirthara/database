@@ -48,17 +48,23 @@ abstract class SqlQueryGrammar implements QueryGrammar
     public function compileExists(SelectQuery $query): CompiledQuery
     {
         $bindings = [];
-        $sql = $this->compileSelectSql($query, $bindings);
+        $sql = $this->compileSelectSql($this->unordered($query), $bindings);
 
-        return new CompiledQuery(sprintf('SELECT EXISTS(%s) AS %s', $sql, $this->quote('exists')), $bindings);
+        return new CompiledQuery($this->wrapExists($sql), $bindings);
+    }
+
+    protected function wrapExists(string $select): string
+    {
+        return sprintf('SELECT EXISTS(%s) AS %s', $select, $this->quote('exists'));
     }
 
     public function compileCount(SelectQuery $query, Expression $column): CompiledQuery
     {
         $bindings = [];
+        $counted = $this->counted($query);
 
         if ($query->groups !== []) {
-            $inner = $this->compileSelectSql($query, $bindings, $this->groupedColumns($query));
+            $inner = $this->compileSelectSql($counted, $bindings, $this->groupedColumns($query));
 
             return new CompiledQuery(
                 sprintf(
@@ -70,18 +76,6 @@ abstract class SqlQueryGrammar implements QueryGrammar
                 $bindings,
             );
         }
-
-        $counted = new SelectQuery(
-            table: $query->table,
-            columns: $query->columns,
-            joins: $query->joins,
-            wheres: $query->wheres,
-            groups: [],
-            havings: $query->havings,
-            orders: [],
-            limit: null,
-            offset: null,
-        );
 
         $sql = $this->compileSelectSql(
             $counted,
@@ -133,22 +127,26 @@ abstract class SqlQueryGrammar implements QueryGrammar
             $bindings[] = $this->binding($value);
         }
 
+        [$top, $suffix] = $this->compileMutationLimit($query->limit, 'update');
+
         $sql =
-            sprintf('UPDATE %s SET %s', $this->wrapTable($query->table), implode(', ', $assignments))
+            sprintf('UPDATE%s %s SET %s', $top, $this->wrapTable($query->table), implode(', ', $assignments))
             . $this->compileWhereSection(array_values($query->wheres), $bindings);
 
-        return new CompiledQuery($sql . $this->compileMutationLimit($query->limit, 'update'), $bindings);
+        return new CompiledQuery($sql . $suffix, $bindings);
     }
 
     public function compileDelete(DeleteQuery $query): CompiledQuery
     {
         $bindings = [];
 
+        [$top, $suffix] = $this->compileMutationLimit($query->limit, 'delete');
+
         $sql =
-            sprintf('DELETE FROM %s', $this->wrapTable($query->table))
+            sprintf('DELETE%s FROM %s', $top, $this->wrapTable($query->table))
             . $this->compileWhereSection(array_values($query->wheres), $bindings);
 
-        return new CompiledQuery($sql . $this->compileMutationLimit($query->limit, 'delete'), $bindings);
+        return new CompiledQuery($sql . $suffix, $bindings);
     }
 
     /**
@@ -157,7 +155,8 @@ abstract class SqlQueryGrammar implements QueryGrammar
     protected function compileSelectSql(SelectQuery $query, array &$bindings, ?string $columns = null): string
     {
         $sql = sprintf(
-            'SELECT %s FROM %s',
+            'SELECT %s%s FROM %s',
+            $this->compileTop($query),
             $columns ?? implode(', ', array_map($this->wrap(...), $query->columns)),
             $this->wrapTable($query->table),
         );
@@ -176,11 +175,21 @@ abstract class SqlQueryGrammar implements QueryGrammar
             $sql .= ' HAVING ' . $this->compileWheres($query->havings, $bindings);
         }
 
-        if ($query->orders !== []) {
-            $sql .= ' ORDER BY ' . implode(', ', array_map($this->compileOrder(...), $query->orders));
+        return $sql . $this->compileOrders($query) . $this->compileLimit($query);
+    }
+
+    protected function compileTop(SelectQuery $query): string
+    {
+        return '';
+    }
+
+    protected function compileOrders(SelectQuery $query): string
+    {
+        if ($query->orders === []) {
+            return '';
         }
 
-        return $sql . $this->compileLimit($query->limit, $query->offset);
+        return ' ORDER BY ' . implode(', ', array_map($this->compileOrder(...), $query->orders));
     }
 
     protected function compileJoin(JoinClause $join): string
@@ -200,25 +209,28 @@ abstract class SqlQueryGrammar implements QueryGrammar
         return sprintf('%s %s', $this->wrap($order->column), $order->direction->value);
     }
 
-    protected function compileLimit(?int $limit, ?int $offset): string
+    protected function compileLimit(SelectQuery $query): string
     {
         $sql = '';
 
-        if ($limit !== null) {
-            $sql .= sprintf(' LIMIT %d', $limit);
+        if ($query->limit !== null) {
+            $sql .= sprintf(' LIMIT %d', $query->limit);
         }
 
-        if ($offset !== null) {
-            $sql .= sprintf(' OFFSET %d', $offset);
+        if ($query->offset !== null) {
+            $sql .= sprintf(' OFFSET %d', $query->offset);
         }
 
         return $sql;
     }
 
-    protected function compileMutationLimit(?int $limit, string $operation): string
+    /**
+     * @return array{string, string} the text after the keyword and the text after the where clause
+     */
+    protected function compileMutationLimit(?int $limit, string $operation): array
     {
         if ($limit === null) {
-            return '';
+            return ['', ''];
         }
 
         throw new LogicException(sprintf('A limited %s query is not supported by this driver.', $operation));
@@ -285,6 +297,30 @@ abstract class SqlQueryGrammar implements QueryGrammar
         };
     }
 
+    private function unordered(SelectQuery $query): SelectQuery
+    {
+        if ($query->orders === [] || $query->limit !== null || $query->offset !== null) {
+            return $query;
+        }
+
+        return $this->counted($query);
+    }
+
+    private function counted(SelectQuery $query): SelectQuery
+    {
+        return new SelectQuery(
+            table: $query->table,
+            columns: $query->columns,
+            joins: $query->joins,
+            wheres: $query->wheres,
+            groups: $query->groups,
+            havings: $query->havings,
+            orders: [],
+            limit: null,
+            offset: null,
+        );
+    }
+
     /**
      * The columns a grouped count selects: the groups themselves, unless columns were chosen.
      */
@@ -326,9 +362,11 @@ abstract class SqlQueryGrammar implements QueryGrammar
         return $segment === '*' || preg_match('/^[A-Za-z_][A-Za-z0-9_$]*$/', $segment) === 1;
     }
 
-    protected function escape(string $identifier, string $delimiter): string
+    protected function escape(string $identifier, string $open, ?string $close = null): string
     {
-        return $delimiter . str_replace($delimiter, $delimiter . $delimiter, $identifier) . $delimiter;
+        $close ??= $open;
+
+        return $open . str_replace($close, $close . $close, $identifier) . $close;
     }
 
     /**
@@ -378,7 +416,7 @@ abstract class SqlQueryGrammar implements QueryGrammar
      */
     private function compileWhereExists(WhereExists $where, array &$bindings): string
     {
-        $subquery = $this->compileSelect($where->query);
+        $subquery = $this->compileSelect($this->unordered($where->query));
 
         $bindings = array_merge($bindings, $subquery->bindings);
 

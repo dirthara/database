@@ -7,6 +7,7 @@ namespace Dirthara\Database\Query\Grammar;
 use LogicException;
 use Dirthara\Database\Query\Join\JoinType;
 use Dirthara\Database\Query\Join\JoinClause;
+use Dirthara\Database\Query\Queries\SelectQuery;
 
 use function sprintf;
 
@@ -31,17 +32,24 @@ final class MySqlQueryGrammar extends SqlQueryGrammar
         return parent::compileJoin($join);
     }
 
-    protected function compileLimit(?int $limit, ?int $offset): string
+    protected function compileLimit(SelectQuery $query): string
     {
-        if ($offset === null) {
-            return $limit === null ? '' : sprintf(' LIMIT %d', $limit);
+        if ($query->offset === null) {
+            return $query->limit === null ? '' : sprintf(' LIMIT %d', $query->limit);
         }
 
-        return sprintf(' LIMIT %s OFFSET %d', $limit === null ? self::UNLIMITED : (string) $limit, $offset);
+        return sprintf(
+            ' LIMIT %s OFFSET %d',
+            $query->limit === null ? self::UNLIMITED : (string) $query->limit,
+            $query->offset,
+        );
     }
 
-    protected function compileMutationLimit(?int $limit, string $operation): string
+    /**
+     * @return array{string, string}
+     */
+    protected function compileMutationLimit(?int $limit, string $operation): array
     {
-        return $limit === null ? '' : sprintf(' LIMIT %d', $limit);
+        return $limit === null ? ['', ''] : ['', sprintf(' LIMIT %d', $limit)];
     }
 }
