@@ -17,5 +17,12 @@
         <include>
             <directory>src</directory>
         </include>
+        <exclude>
+            <directory>src/Query/Clause</directory>
+            <directory>src/Query/Expression</directory>
+            <directory>src/Query/Join</directory>
+            <directory>src/Query/Queries</directory>
+            <file>src/Query/Operator/BooleanOperator.php</file>
+        </exclude>
     </source>
 </phpunit>

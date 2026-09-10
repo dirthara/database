@@ -11,7 +11,7 @@ use Dirthara\Database\Query\Queries\UpdateQuery;
 use Dirthara\Database\Query\Expression\Expression;
 use Dirthara\Database\Query\Queries\CompiledQuery;
 
-class SQLiteQueryGrammar implements QueryGrammar
+class PostgresSqlQueryGrammar implements QueryGrammar
 {
     public function compileSelect(SelectQuery $query): CompiledQuery
     {

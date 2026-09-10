@@ -1,0 +1,448 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Dirthara\Database\Tests\Query;
+
+use ValueError;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\Test;
+use Dirthara\Database\Query\Clause\Where;
+use Dirthara\Database\Query\QueryBuilder;
+use Dirthara\Database\Query\Clause\WhereIn;
+use Dirthara\Database\Query\Clause\WhereNull;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Dirthara\Database\Query\Clause\NestedWhere;
+use Dirthara\Database\Query\Clause\WhereColumn;
+use Dirthara\Database\Query\Clause\WhereExists;
+use Dirthara\Database\Query\Clause\WhereBetween;
+use Dirthara\Database\Query\Expression\Expression;
+use Dirthara\Database\Query\Operator\BooleanOperator;
+use Dirthara\Database\Query\Operator\ComparisonOperator;
+
+final class QueryBuilderWhereTest extends QueryBuilderTestCase
+{
+    #[Test]
+    public function it_has_no_conditions_by_default(): void
+    {
+        self::assertSame([], $this->builder()->toSelectQuery()->wheres);
+    }
+
+    #[Test]
+    public function it_compares_a_column_to_a_value(): void
+    {
+        $wheres = $this->builder()->where('name', '=', 'Ada')->toSelectQuery()->wheres;
+
+        self::assertCount(1, $wheres);
+
+        $where = self::clause(Where::class, $wheres[0]);
+
+        self::assertSame('name', $where->column->expression);
+        self::assertSame(ComparisonOperator::Equal, $where->operator);
+        self::assertSame('Ada', $where->value);
+        self::assertSame(BooleanOperator::And, $where->boolean);
+    }
+
+    #[Test]
+    public function it_compares_a_column_to_a_value_as_an_alternative(): void
+    {
+        $wheres = $this->builder()->where('name', '=', 'Ada')->orWhere('name', '=', 'Grace')->toSelectQuery()->wheres;
+
+        self::assertCount(2, $wheres);
+        self::assertSame(BooleanOperator::Or, self::clause(Where::class, $wheres[1])->boolean);
+    }
+
+    #[Test]
+    public function it_accepts_an_operator_instance(): void
+    {
+        $wheres = $this->builder()->where('age', ComparisonOperator::GreaterThanOrEqual, 18)->toSelectQuery()->wheres;
+
+        self::assertSame(ComparisonOperator::GreaterThanOrEqual, self::clause(Where::class, $wheres[0])->operator);
+    }
+
+    /**
+     * @return array<string, array{string, ComparisonOperator}>
+     */
+    public static function operators(): array
+    {
+        return [
+            'lower case like' => ['like', ComparisonOperator::Like],
+            'mixed case like' => ['Like', ComparisonOperator::Like],
+            'upper case like' => ['LIKE', ComparisonOperator::Like],
+            'lower case not like' => ['not like', ComparisonOperator::NotLike],
+            'greater than' => ['>', ComparisonOperator::GreaterThan],
+            'less than or equal' => ['<=', ComparisonOperator::LessThanOrEqual],
+            'not equal' => ['!=', ComparisonOperator::NotEqual],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('operators')]
+    public function it_reads_an_operator_in_any_case(string $operator, ComparisonOperator $expected): void
+    {
+        $wheres = $this->builder()->where('name', $operator, 'Ada')->toSelectQuery()->wheres;
+
+        self::assertSame($expected, self::clause(Where::class, $wheres[0])->operator);
+    }
+
+    #[Test]
+    public function it_rejects_an_unknown_operator(): void
+    {
+        $this->expectException(ValueError::class);
+
+        $this->builder()->where('name', 'equals', 'Ada');
+    }
+
+    #[Test]
+    public function it_keeps_a_condition_expression_as_given(): void
+    {
+        $expression = new Expression('LOWER(name)');
+
+        $wheres = $this->builder()->where($expression, '=', 'ada')->toSelectQuery()->wheres;
+
+        self::assertSame($expression, self::clause(Where::class, $wheres[0])->column);
+    }
+
+    #[Test]
+    public function it_turns_an_equality_against_null_into_a_null_test(): void
+    {
+        $wheres = $this->builder()->where('deleted_at', '=', null)->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereNull::class, $wheres[0]);
+
+        self::assertSame('deleted_at', $where->column->expression);
+        self::assertFalse($where->negated);
+        self::assertSame(BooleanOperator::And, $where->boolean);
+    }
+
+    #[Test]
+    public function it_turns_an_inequality_against_null_into_a_negated_null_test(): void
+    {
+        $wheres = $this->builder()->orWhere(new Expression('deleted_at'), '!=', null)->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereNull::class, $wheres[0]);
+
+        self::assertTrue($where->negated);
+        self::assertSame(BooleanOperator::Or, $where->boolean);
+    }
+
+    #[Test]
+    public function it_rejects_null_for_any_other_operator(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Operator [GreaterThan (>)] cannot be used with NULL.');
+
+        $this->builder()->where('age', '>', null);
+    }
+
+    #[Test]
+    public function it_tests_for_null(): void
+    {
+        $wheres = $this->builder()->whereNull('deleted_at')->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereNull::class, $wheres[0]);
+
+        self::assertSame('deleted_at', $where->column->expression);
+        self::assertFalse($where->negated);
+        self::assertSame(BooleanOperator::And, $where->boolean);
+    }
+
+    #[Test]
+    public function it_tests_for_null_as_an_alternative(): void
+    {
+        $wheres = $this->builder()->orWhereNull('deleted_at')->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereNull::class, $wheres[0]);
+
+        self::assertFalse($where->negated);
+        self::assertSame(BooleanOperator::Or, $where->boolean);
+    }
+
+    #[Test]
+    public function it_tests_for_a_value(): void
+    {
+        $expression = new Expression('deleted_at');
+
+        $wheres = $this->builder()->whereNotNull($expression)->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereNull::class, $wheres[0]);
+
+        self::assertSame($expression, $where->column);
+        self::assertTrue($where->negated);
+        self::assertSame(BooleanOperator::And, $where->boolean);
+    }
+
+    #[Test]
+    public function it_tests_for_a_value_as_an_alternative(): void
+    {
+        $wheres = $this->builder()->orWhereNotNull('deleted_at')->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereNull::class, $wheres[0]);
+
+        self::assertTrue($where->negated);
+        self::assertSame(BooleanOperator::Or, $where->boolean);
+    }
+
+    #[Test]
+    public function it_tests_for_membership(): void
+    {
+        $wheres = $this->builder()->whereIn('id', [1, 2, 3])->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereIn::class, $wheres[0]);
+
+        self::assertSame('id', $where->column->expression);
+        self::assertSame([1, 2, 3], $where->values);
+        self::assertFalse($where->negated);
+        self::assertSame(BooleanOperator::And, $where->boolean);
+    }
+
+    #[Test]
+    public function it_tests_for_membership_as_an_alternative(): void
+    {
+        $wheres = $this->builder()->orWhereIn('id', [1])->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereIn::class, $wheres[0]);
+
+        self::assertFalse($where->negated);
+        self::assertSame(BooleanOperator::Or, $where->boolean);
+    }
+
+    #[Test]
+    public function it_tests_for_exclusion(): void
+    {
+        $wheres = $this->builder()->whereNotIn('id', [1])->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereIn::class, $wheres[0]);
+
+        self::assertTrue($where->negated);
+        self::assertSame(BooleanOperator::And, $where->boolean);
+    }
+
+    #[Test]
+    public function it_tests_for_exclusion_as_an_alternative(): void
+    {
+        $wheres = $this->builder()->orWhereNotIn(new Expression('id'), [1])->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereIn::class, $wheres[0]);
+
+        self::assertTrue($where->negated);
+        self::assertSame(BooleanOperator::Or, $where->boolean);
+    }
+
+    #[Test]
+    public function it_reindexes_membership_values(): void
+    {
+        $wheres = $this->builder()->whereIn('id', ['a' => 1, 'b' => 2])->toSelectQuery()->wheres;
+
+        self::assertSame([1, 2], self::clause(WhereIn::class, $wheres[0])->values);
+    }
+
+    /**
+     * @return iterable<string, int>
+     */
+    public static function membership(): iterable
+    {
+        yield 'a' => 1;
+
+        yield 'b' => 2;
+    }
+
+    #[Test]
+    public function it_collects_membership_values_from_any_iterable(): void
+    {
+        $wheres = $this->builder()->whereIn('id', self::membership())->toSelectQuery()->wheres;
+
+        self::assertSame([1, 2], self::clause(WhereIn::class, $wheres[0])->values);
+    }
+
+    #[Test]
+    public function it_records_an_empty_membership_test(): void
+    {
+        $wheres = $this->builder()->whereIn('id', [])->toSelectQuery()->wheres;
+
+        self::assertSame([], self::clause(WhereIn::class, $wheres[0])->values);
+    }
+
+    #[Test]
+    public function it_tests_a_range(): void
+    {
+        $wheres = $this->builder()->whereBetween('age', 18, 65)->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereBetween::class, $wheres[0]);
+
+        self::assertSame('age', $where->column->expression);
+        self::assertSame(18, $where->from);
+        self::assertSame(65, $where->to);
+        self::assertFalse($where->negated);
+        self::assertSame(BooleanOperator::And, $where->boolean);
+    }
+
+    #[Test]
+    public function it_tests_outside_a_range(): void
+    {
+        $expression = new Expression('age');
+
+        $wheres = $this->builder()->whereNotBetween($expression, 18, 65)->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereBetween::class, $wheres[0]);
+
+        self::assertSame($expression, $where->column);
+        self::assertTrue($where->negated);
+        self::assertSame(BooleanOperator::And, $where->boolean);
+    }
+
+    #[Test]
+    public function it_compares_two_columns(): void
+    {
+        $wheres = $this->builder()->whereColumn('created_at', '<', 'updated_at')->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereColumn::class, $wheres[0]);
+
+        self::assertSame('created_at', $where->first->expression);
+        self::assertSame(ComparisonOperator::LessThan, $where->operator);
+        self::assertSame('updated_at', $where->second->expression);
+        self::assertSame(BooleanOperator::And, $where->boolean);
+    }
+
+    #[Test]
+    public function it_compares_two_columns_as_an_alternative(): void
+    {
+        $first = new Expression('created_at');
+        $second = new Expression('updated_at');
+
+        $wheres = $this
+            ->builder()
+            ->orWhereColumn($first, ComparisonOperator::NotEqual, $second)
+            ->toSelectQuery()
+            ->wheres;
+
+        $where = self::clause(WhereColumn::class, $wheres[0]);
+
+        self::assertSame($first, $where->first);
+        self::assertSame($second, $where->second);
+        self::assertSame(BooleanOperator::Or, $where->boolean);
+    }
+
+    #[Test]
+    public function it_reads_a_column_comparison_operator_in_any_case(): void
+    {
+        $wheres = $this->builder()->whereColumn('name', 'like', 'nickname')->toSelectQuery()->wheres;
+
+        self::assertSame(ComparisonOperator::Like, self::clause(WhereColumn::class, $wheres[0])->operator);
+    }
+
+    #[Test]
+    public function it_groups_nested_conditions(): void
+    {
+        $wheres = $this
+            ->builder()
+            ->where('active', '=', 1)
+            ->whereNested(static function (QueryBuilder $query): void {
+                $query->where('name', '=', 'Ada')->orWhere('name', '=', 'Grace');
+            })
+            ->toSelectQuery()
+            ->wheres;
+
+        self::assertCount(2, $wheres);
+
+        $nested = self::clause(NestedWhere::class, $wheres[1]);
+
+        self::assertCount(2, $nested->wheres);
+        self::assertSame(BooleanOperator::And, $nested->boolean);
+        self::assertSame(BooleanOperator::And, self::clause(Where::class, $nested->wheres[0])->boolean);
+        self::assertSame(BooleanOperator::Or, self::clause(Where::class, $nested->wheres[1])->boolean);
+    }
+
+    #[Test]
+    public function it_groups_nested_conditions_as_an_alternative(): void
+    {
+        $wheres = $this
+            ->builder()
+            ->orWhereNested(static function (QueryBuilder $query): void {
+                $query->whereNull('deleted_at');
+            })
+            ->toSelectQuery()
+            ->wheres;
+
+        self::assertSame(BooleanOperator::Or, self::clause(NestedWhere::class, $wheres[0])->boolean);
+    }
+
+    #[Test]
+    public function it_discards_an_empty_nested_group(): void
+    {
+        $wheres = $this
+            ->builder()
+            ->whereNested(static function (QueryBuilder $query): void {
+                $query->select('id');
+            })
+            ->toSelectQuery()
+            ->wheres;
+
+        self::assertSame([], $wheres);
+    }
+
+    #[Test]
+    public function it_nests_over_the_same_table(): void
+    {
+        $tables = [];
+
+        $this->builder('posts')->whereNested(static function (QueryBuilder $query) use (&$tables): void {
+            $tables[] = $query->toSelectQuery()->table;
+
+            $query->whereNull('deleted_at');
+        });
+
+        self::assertSame(['posts'], $tables);
+    }
+
+    #[Test]
+    public function it_tests_for_a_matching_subquery(): void
+    {
+        $subquery = $this->builder('posts')->select('id')->whereColumn('posts.user_id', '=', 'users.id');
+
+        $wheres = $this->builder()->whereExists($subquery)->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereExists::class, $wheres[0]);
+
+        self::assertSame('posts', $where->query->table);
+        self::assertCount(1, $where->query->wheres);
+        self::assertFalse($where->negated);
+        self::assertSame(BooleanOperator::And, $where->boolean);
+    }
+
+    #[Test]
+    public function it_tests_for_a_missing_subquery(): void
+    {
+        $wheres = $this->builder()->whereNotExists($this->builder('posts'))->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereExists::class, $wheres[0]);
+
+        self::assertTrue($where->negated);
+        self::assertSame(BooleanOperator::And, $where->boolean);
+    }
+
+    #[Test]
+    public function it_returns_itself_from_every_condition_method(): void
+    {
+        $builder = $this->builder();
+
+        self::assertSame($builder, $builder->where('name', '=', 'Ada'));
+        self::assertSame($builder, $builder->orWhere('name', '=', 'Ada'));
+        self::assertSame($builder, $builder->whereNull('deleted_at'));
+        self::assertSame($builder, $builder->orWhereNull('deleted_at'));
+        self::assertSame($builder, $builder->whereNotNull('deleted_at'));
+        self::assertSame($builder, $builder->orWhereNotNull('deleted_at'));
+        self::assertSame($builder, $builder->whereIn('id', [1]));
+        self::assertSame($builder, $builder->orWhereIn('id', [1]));
+        self::assertSame($builder, $builder->whereNotIn('id', [1]));
+        self::assertSame($builder, $builder->orWhereNotIn('id', [1]));
+        self::assertSame($builder, $builder->whereBetween('age', 1, 2));
+        self::assertSame($builder, $builder->whereNotBetween('age', 1, 2));
+        self::assertSame($builder, $builder->whereColumn('a', '=', 'b'));
+        self::assertSame($builder, $builder->orWhereColumn('a', '=', 'b'));
+        self::assertSame($builder, $builder->whereNested(static fn(QueryBuilder $query) => $query->whereNull('a')));
+        self::assertSame($builder, $builder->orWhereNested(static fn(QueryBuilder $query) => $query->whereNull('a')));
+        self::assertSame($builder, $builder->whereExists($this->builder('posts')));
+        self::assertSame($builder, $builder->whereNotExists($this->builder('posts')));
+    }
+}
