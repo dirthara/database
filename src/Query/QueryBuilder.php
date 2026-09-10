@@ -488,6 +488,50 @@ final class QueryBuilder
     }
 
     /**
+     * @param callable(list<array<string, mixed>>, int): mixed $callback
+     *
+     * @throws QueryException
+     * @throws ConnectionException
+     */
+    public function chunk(int $size, callable $callback): bool
+    {
+        if ($size < 1) {
+            throw new InvalidArgumentException('A chunk size must be at least one row.');
+        }
+
+        if ($this->orders === []) {
+            throw new LogicException('A chunked query needs an ordering, or its pages can skip and repeat rows.');
+        }
+
+        if ($this->limit !== null || $this->offset !== null) {
+            throw new LogicException('A chunked query cannot limit or page itself; chunk() pages it.');
+        }
+
+        $page = 1;
+
+        while (true) {
+            $rows = (clone $this)
+                ->limit($size)
+                ->offset(($page - 1) * $size)
+                ->get();
+
+            if ($rows === []) {
+                return true;
+            }
+
+            if ($callback($rows, $page) === false) {
+                return false;
+            }
+
+            if (count($rows) < $size) {
+                return true;
+            }
+
+            ++$page;
+        }
+    }
+
+    /**
      * @return array<string, mixed>|null
      *
      * @throws QueryException

@@ -358,6 +358,7 @@ SELECT COUNT(*) AS `aggregate` FROM (SELECT `name` FROM `users` UNION SELECT `na
 | `get()` | `list<array<string, mixed>>` — every row. |
 | `first()` | `array<string, mixed>` or `null` — applies `LIMIT 1`. |
 | `cursor()` | `iterable` — rows one at a time. |
+| `chunk(int $size, callable $callback)` | `bool` — pages the query through the callback. |
 | `exists()` | `bool` |
 | `count(string\|Expression $column = '*')` | `int` |
 | `sum($column)`, `avg($column)`, `min($column)`, `max($column)` | `string\|int\|float\|bool\|null` |
@@ -378,6 +379,63 @@ whatever limit you gave it.
 :::note
 `cursor()` is a generator: nothing is compiled or sent until you start iterating,
 so an exception from the query surfaces at the first `foreach`, not at the call.
+:::
+
+## Chunking
+
+`chunk()` runs the query one page at a time and hands each page to a callback,
+so a large table is processed without holding all of it at once:
+
+```php
+$database->table('users')
+    ->orderBy('id')
+    ->chunk(500, function (array $rows, int $page): void {
+        // $rows is a list of up to 500 rows; $page counts from one
+    });
+```
+
+It returns `true` when it reached the end. Returning `false` from the callback
+stops the iteration, and `chunk()` returns `false` to say so:
+
+```php
+$completed = $database->table('users')->orderBy('id')->chunk(100, function (array $rows): bool {
+    return needsMore($rows);
+});
+```
+
+Each page is a separate `LIMIT`/`OFFSET` query with the builder's conditions
+applied, so the connection is free between pages and the callback can query it.
+The builder itself is not modified — its limit and offset are untouched
+afterwards.
+
+`chunk()` requires an ordering, and refuses a query that pages itself:
+
+```php
+$database->table('users')->chunk(100, $callback);
+// LogicException: A chunked query needs an ordering, or its pages can skip and repeat rows.
+
+$database->table('users')->orderBy('id')->limit(10)->chunk(100, $callback);
+// LogicException: A chunked query cannot limit or page itself; chunk() pages it.
+```
+
+The ordering is not a formality. Without one the database may return rows in a
+different order for each page, so a row can appear on two pages or on none — and
+on SQL Server, where paging needs an `ORDER BY` at all, the grammar would supply
+an arbitrary one.
+
+:::caution
+Offsets are counted against the query as it runs, not against a snapshot. If the
+callback changes rows so that they no longer match — deleting them, or updating
+the column a condition tests — the rows after them shift up, and the next page
+starts past them. Either make the callback's writes not affect the query's
+conditions, or collect the keys first and act on them afterwards.
+:::
+
+:::tip
+`chunk()` and `cursor()` solve different problems. `cursor()` streams one row at
+a time from a single statement, which is what you want to walk every row.
+`chunk()` gives you an array per page, which is what you want to do *batched*
+work — one bulk insert, or one API call, per hundred rows.
 :::
 
 `count()` drops ordering and paging, since neither changes a count. Over a

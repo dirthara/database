@@ -11,6 +11,7 @@ use Dirthara\Database\Tests\ConnectionTestCase;
 use Dirthara\Database\Query\Expression\Expression;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
+use Dirthara\Database\Query\Grammar\SQLiteQueryGrammar;
 use Dirthara\Database\Tests\Query\Doubles\RecordingGrammar;
 
 use function sprintf;
@@ -44,6 +45,20 @@ abstract class QueryBuilderTestCase extends ConnectionTestCase
         $this->grammar->result = new CompiledQuery($sql, $bindings);
 
         return new QueryBuilder($this->seeded(), $this->grammar, 'users');
+    }
+
+    /**
+     * A builder over a real grammar and a seeded table, for behaviour that depends on paging.
+     */
+    protected function paging(string ...$extra): QueryBuilder
+    {
+        $connection = $this->seeded();
+
+        foreach ($extra as $name) {
+            $connection->execute('INSERT INTO users (name, active) VALUES (?, ?)', [$name, 1]);
+        }
+
+        return new QueryBuilder($connection, new SQLiteQueryGrammar(), 'users');
     }
 
     protected static function identifier(Expression $expression): Identifier

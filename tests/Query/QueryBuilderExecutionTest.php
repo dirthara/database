@@ -8,6 +8,7 @@ use LogicException;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Where;
+
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
 use Dirthara\Database\Query\Aggregate\AggregateFunction;
@@ -65,6 +66,156 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
         iterator_to_array($cursor);
 
         self::assertNotNull($this->grammar->select);
+    }
+
+    #[Test]
+    public function it_chunks_a_query_into_pages(): void
+    {
+        $pages = [];
+
+        $complete = $this
+            ->paging('Alan', 'Edsger', 'Barbara')
+            ->select('name')
+            ->orderBy('id')
+            ->chunk(2, static function (array $rows, int $page) use (&$pages): void {
+                $pages[$page] = array_column($rows, 'name');
+            });
+
+        self::assertTrue($complete);
+        self::assertSame(
+            [
+                1 => ['Ada', 'Grace'],
+                2 => ['Alan', 'Edsger'],
+                3 => ['Barbara'],
+            ],
+            $pages,
+        );
+    }
+
+    #[Test]
+    public function it_chunks_a_query_that_divides_evenly(): void
+    {
+        $pages = [];
+
+        $complete = $this
+            ->paging('Alan', 'Edsger')
+            ->select('name')
+            ->orderBy('id')
+            ->chunk(2, static function (array $rows, int $page) use (&$pages): void {
+                $pages[$page] = array_column($rows, 'name');
+            });
+
+        self::assertTrue($complete);
+        self::assertSame([1 => ['Ada', 'Grace'], 2 => ['Alan', 'Edsger']], $pages);
+    }
+
+    #[Test]
+    public function it_applies_the_conditions_to_every_page(): void
+    {
+        $seen = [];
+
+        $this
+            ->paging('Alan')
+            ->select('name')
+            ->where('active', '=', 1)
+            ->orderBy('id')
+            ->chunk(1, static function (array $rows) use (&$seen): void {
+                $seen[] = $rows[0]['name'];
+            });
+
+        self::assertSame(['Ada', 'Alan'], $seen);
+    }
+
+    #[Test]
+    public function it_stops_chunking_when_the_callback_returns_false(): void
+    {
+        $pages = 0;
+
+        $complete = $this
+            ->paging('Alan', 'Edsger')
+            ->orderBy('id')
+            ->chunk(2, static function () use (&$pages): bool {
+                ++$pages;
+
+                return false;
+            });
+
+        self::assertFalse($complete);
+        self::assertSame(1, $pages);
+    }
+
+    #[Test]
+    public function it_chunks_an_empty_query_without_calling_back(): void
+    {
+        $called = false;
+
+        $complete = $this
+            ->paging()
+            ->where('name', '=', 'nobody')
+            ->orderBy('id')
+            ->chunk(2, static function () use (&$called): void {
+                $called = true;
+            });
+
+        self::assertTrue($complete);
+        self::assertFalse($called);
+    }
+
+    #[Test]
+    public function it_leaves_the_builder_unpaged_after_chunking(): void
+    {
+        $builder = $this->paging()->orderBy('id');
+
+        $builder->chunk(2, static fn(): null => null);
+
+        self::assertNull($builder->toSelectQuery()->limit);
+        self::assertNull($builder->toSelectQuery()->offset);
+    }
+
+    #[Test]
+    public function it_rejects_a_chunk_smaller_than_one_row(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('A chunk size must be at least one row.');
+
+        $this
+            ->executing('SELECT name FROM users')
+            ->orderBy('id')
+            ->chunk(0, static fn(): null => null);
+    }
+
+    #[Test]
+    public function it_rejects_a_chunk_without_an_ordering(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('A chunked query needs an ordering, or its pages can skip and repeat rows.');
+
+        $this->executing('SELECT name FROM users')->chunk(2, static fn(): null => null);
+    }
+
+    #[Test]
+    public function it_rejects_a_chunk_that_pages_itself(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('A chunked query cannot limit or page itself; chunk() pages it.');
+
+        $this
+            ->executing('SELECT name FROM users')
+            ->orderBy('id')
+            ->limit(10)
+            ->chunk(2, static fn(): null => null);
+    }
+
+    #[Test]
+    public function it_rejects_a_chunk_that_offsets_itself(): void
+    {
+        $this->expectException(LogicException::class);
+
+        $this
+            ->executing('SELECT name FROM users')
+            ->orderBy('id')
+            ->offset(10)
+            ->chunk(2, static fn(): null => null);
     }
 
     #[Test]
