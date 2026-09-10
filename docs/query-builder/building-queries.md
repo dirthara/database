@@ -35,6 +35,7 @@ fresh one.
 | `select(...$columns)` | Replaces the selection. With no arguments it clears it. |
 | `addSelect(...$columns)` | Appends to the selection. |
 | `selectRaw(string $sql, array $bindings = [])` | Appends a raw SQL fragment. |
+| `distinct(bool $distinct = true)` | Emits `SELECT DISTINCT`. Pass `false` to turn it off again. |
 
 With nothing selected, the query selects `*`.
 
@@ -309,6 +310,7 @@ offset-without-limit differently; the grammar handles it, and
 | `cursor()` | `iterable` — rows one at a time. |
 | `exists()` | `bool` |
 | `count(string\|Expression $column = '*')` | `int` |
+| `sum($column)`, `avg($column)`, `min($column)`, `max($column)` | `string\|int\|float\|bool\|null` |
 
 ```php
 $rows = $database->table('users')->where('active', '=', 1)->get();
@@ -329,7 +331,59 @@ so an exception from the query surfaces at the first `foreach`, not at the call.
 :::
 
 `count()` drops ordering and paging, since neither changes a count. Over a
-grouped query it counts the groups by wrapping the query in a derived table.
+grouped or `distinct()` query it counts the rows the query returns, by wrapping
+it in a derived table.
+
+## Aggregates
+
+`sum()`, `avg()`, `min()` and `max()` reduce the query to one value, applying its
+conditions and joins:
+
+```php
+$total = $database->table('orders')->where('status', '=', 'paid')->sum('amount');
+
+$oldest = $database->table('users')->min('created_at');
+```
+
+Like `count()`, they drop ordering and paging. With `distinct()` they aggregate
+the distinct values — `SUM(DISTINCT amount)`.
+
+:::caution
+The return type is whatever the driver hands back, which is not the same across
+databases. `sum()` over an integer column returns an `int` on SQLite and
+PostgreSQL and a numeric `string` on MySQL and SQL Server; `avg()` returns a
+`float` on SQLite and a `string` elsewhere. Nothing is cast, because casting a
+`DECIMAL` sum to `float` would lose precision silently. Cast at the call site
+once you know the column's type.
+:::
+
+:::note
+`avg()` follows the column's type, not the average's. Over an `INT` column, SQL
+Server returns an integer — `16` where the other three return `16.67`. Cast the
+column in the query if you need the fraction:
+`avg(new RawExpression('CAST(amount AS FLOAT)'))`.
+:::
+
+An aggregate over a grouped query is refused, because it has one value per group
+rather than one value:
+
+```php
+$database->table('orders')->groupBy('status')->sum('amount');
+// LogicException: A grouped query has one SUM per group; add it to the selection instead.
+```
+
+Select it instead, and read the rows:
+
+```php
+$database->table('orders')
+    ->select('status')
+    ->selectRaw('SUM(amount) AS total')
+    ->groupBy('status')
+    ->get();
+```
+
+`count()` is the exception: counting the groups of a grouped query is a
+meaningful single number, so it is allowed.
 
 ## Inspecting without running
 

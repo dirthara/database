@@ -196,6 +196,24 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     }
 
     #[Test]
+    public function it_selects_every_row_by_default(): void
+    {
+        self::assertFalse($this->builder()->toSelectQuery()->distinct);
+    }
+
+    #[Test]
+    public function it_selects_distinct_rows(): void
+    {
+        self::assertTrue($this->builder()->distinct()->toSelectQuery()->distinct);
+    }
+
+    #[Test]
+    public function it_turns_distinct_off_again(): void
+    {
+        self::assertFalse($this->builder()->distinct()->distinct(false)->toSelectQuery()->distinct);
+    }
+
+    #[Test]
     public function it_groups_by_a_column_name(): void
     {
         $groups = $this->builder()->groupBy('role')->toSelectQuery()->groups;
@@ -618,6 +636,7 @@ final class QueryBuilderTest extends QueryBuilderTestCase
         $builder = $this->builder();
 
         self::assertSame($builder, $builder->select('id'));
+        self::assertSame($builder, $builder->distinct());
         self::assertSame($builder, $builder->addSelect('name'));
         self::assertSame($builder, $builder->join('posts', 'users.id', '=', 'posts.user_id'));
         self::assertSame($builder, $builder->leftJoin('posts', 'users.id', '=', 'posts.user_id'));

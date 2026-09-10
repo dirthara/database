@@ -21,6 +21,7 @@ use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Query\Operator\BooleanOperator;
 use Dirthara\Database\Query\Grammar\SQLiteQueryGrammar;
+use Dirthara\Database\Query\Aggregate\AggregateFunction;
 use Dirthara\Database\Query\Operator\ComparisonOperator;
 
 final class SQLiteQueryGrammarTest extends GrammarTestCase
@@ -227,7 +228,7 @@ final class SQLiteQueryGrammarTest extends GrammarTestCase
     {
         self::assertSame(
             'SELECT COUNT("name") AS "aggregate" FROM "users"',
-            $this->grammar->compileCount($this->select(), new Identifier('name'))->sql,
+            $this->grammar->compileAggregate($this->select(), AggregateFunction::Count, new Identifier('name'))->sql,
         );
     }
 
@@ -236,7 +237,11 @@ final class SQLiteQueryGrammarTest extends GrammarTestCase
     {
         self::assertSame(
             'SELECT COUNT(*) AS "aggregate" FROM (SELECT "role" FROM "users" GROUP BY "role") AS "aggregate"',
-            $this->grammar->compileCount($this->select(groups: $this->columns('role')), new Identifier('*'))->sql,
+            $this->grammar->compileAggregate(
+                $this->select(groups: $this->columns('role')),
+                AggregateFunction::Count,
+                new Identifier('*'),
+            )->sql,
         );
     }
 

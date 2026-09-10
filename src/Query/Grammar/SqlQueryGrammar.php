@@ -26,6 +26,7 @@ use Dirthara\Database\Query\Expression\Expression;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
 use Dirthara\Database\Query\Expression\RawExpression;
+use Dirthara\Database\Query\Aggregate\AggregateFunction;
 
 use function count;
 use function explode;
@@ -61,14 +62,16 @@ abstract class SqlQueryGrammar implements QueryGrammar
         return sprintf('SELECT EXISTS(%s) AS %s', $select, $this->quote('exists'));
     }
 
-    public function compileCount(SelectQuery $query, Expression $column): CompiledQuery
+    public function compileAggregate(SelectQuery $query, AggregateFunction $function, Expression $column): CompiledQuery
     {
         $bindings = [];
-        $counted = $this->counted($query);
 
-        if ($query->groups !== []) {
-            $grouped = $this->groupedColumns($query, $bindings);
-            $inner = $this->compileSelectSql($counted, $bindings, $grouped);
+        if ($function === AggregateFunction::Count && ($query->groups !== [] || $query->distinct)) {
+            $inner = $this->compileSelectSql(
+                $this->aggregated($query, $query->distinct),
+                $bindings,
+                $this->groupedColumns($query, $bindings),
+            );
 
             return new CompiledQuery(
                 sprintf(
@@ -81,8 +84,15 @@ abstract class SqlQueryGrammar implements QueryGrammar
             );
         }
 
-        $counting = sprintf('COUNT(%s) AS %s', $this->wrap($column, $bindings), $this->quote('aggregate'));
-        $sql = $this->compileSelectSql($counted, $bindings, $counting);
+        $columns = sprintf(
+            '%s(%s%s) AS %s',
+            $function->value,
+            $query->distinct ? 'DISTINCT ' : '',
+            $this->wrap($column, $bindings),
+            $this->quote('aggregate'),
+        );
+
+        $sql = $this->compileSelectSql($this->aggregated($query, false), $bindings, $columns);
 
         return new CompiledQuery($sql, $bindings);
     }
@@ -163,7 +173,8 @@ abstract class SqlQueryGrammar implements QueryGrammar
         $columns ??= $this->compileExpressions($query->columns, $bindings);
 
         $sql = sprintf(
-            'SELECT %s%s FROM %s',
+            'SELECT %s%s%s FROM %s',
+            $query->distinct ? 'DISTINCT ' : '',
             $this->compileTop($query),
             $columns,
             $this->wrap($query->table, $bindings),
@@ -355,14 +366,15 @@ abstract class SqlQueryGrammar implements QueryGrammar
             return $query;
         }
 
-        return $this->counted($query);
+        return $this->aggregated($query, $query->distinct);
     }
 
-    private function counted(SelectQuery $query): SelectQuery
+    private function aggregated(SelectQuery $query, bool $distinct): SelectQuery
     {
         return new SelectQuery(
             table: $query->table,
             columns: $query->columns,
+            distinct: $distinct,
             joins: $query->joins,
             wheres: $query->wheres,
             groups: $query->groups,

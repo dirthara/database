@@ -24,6 +24,7 @@ final readonly class SelectQuery
     public function __construct(
         public Expression $table,
         public array $columns,
+        public bool $distinct,
         public array $joins,
         public array $wheres,
         public array $groups,

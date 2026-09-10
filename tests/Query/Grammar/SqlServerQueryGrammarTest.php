@@ -20,6 +20,7 @@ use Dirthara\Database\Query\Clause\OrderDirection;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Query\Operator\BooleanOperator;
+use Dirthara\Database\Query\Aggregate\AggregateFunction;
 use Dirthara\Database\Query\Operator\ComparisonOperator;
 use Dirthara\Database\Query\Grammar\SqlServerQueryGrammar;
 
@@ -253,7 +254,7 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
     {
         self::assertSame(
             'SELECT COUNT([name]) AS [aggregate] FROM [users]',
-            $this->grammar->compileCount($this->select(), new Identifier('name'))->sql,
+            $this->grammar->compileAggregate($this->select(), AggregateFunction::Count, new Identifier('name'))->sql,
         );
     }
 
@@ -262,12 +263,13 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
     {
         self::assertSame(
             'SELECT COUNT(*) AS [aggregate] FROM [users]',
-            $this->grammar->compileCount(
+            $this->grammar->compileAggregate(
                 $this->select(
                     orders: [new OrderBy(new Identifier('name'), OrderDirection::Ascending)],
                     limit: 10,
                     offset: 5,
                 ),
+                AggregateFunction::Count,
                 new Identifier('*'),
             )->sql,
         );
@@ -278,10 +280,10 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
     {
         self::assertSame(
             'SELECT COUNT(*) AS [aggregate] FROM (SELECT [role] FROM [users] GROUP BY [role]) AS [aggregate]',
-            $this->grammar->compileCount($this->select(groups: $this->columns('role'), orders: [new OrderBy(
+            $this->grammar->compileAggregate($this->select(groups: $this->columns('role'), orders: [new OrderBy(
                 new Identifier('role'),
                 OrderDirection::Ascending,
-            )]), new Identifier('*'))->sql,
+            )]), AggregateFunction::Count, new Identifier('*'))->sql,
         );
     }
 

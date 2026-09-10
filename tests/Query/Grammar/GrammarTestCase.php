@@ -28,6 +28,7 @@ abstract class GrammarTestCase extends TestCase
     protected function select(
         string|Expression $table = 'users',
         array $columns = [],
+        bool $distinct = false,
         array $joins = [],
         array $wheres = [],
         array $groups = [],
@@ -39,6 +40,7 @@ abstract class GrammarTestCase extends TestCase
         return new SelectQuery(
             table: ExpressionFactory::from($table),
             columns: $columns === [] ? [new Identifier('*')] : $columns,
+            distinct: $distinct,
             joins: $joins,
             wheres: $wheres,
             groups: $groups,

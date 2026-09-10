@@ -11,6 +11,7 @@ use Dirthara\Database\Query\Queries\UpdateQuery;
 use Dirthara\Database\Query\Grammar\QueryGrammar;
 use Dirthara\Database\Query\Expression\Expression;
 use Dirthara\Database\Query\Queries\CompiledQuery;
+use Dirthara\Database\Query\Aggregate\AggregateFunction;
 
 /**
  * A grammar that records the query it was handed and returns SQL the test chose.
@@ -24,6 +25,8 @@ final class RecordingGrammar implements QueryGrammar
     public ?SelectQuery $count = null;
 
     public ?Expression $countColumn = null;
+
+    public ?AggregateFunction $aggregateFunction = null;
 
     public ?InsertQuery $insert = null;
 
@@ -49,10 +52,11 @@ final class RecordingGrammar implements QueryGrammar
         return $this->result;
     }
 
-    public function compileCount(SelectQuery $query, Expression $column): CompiledQuery
+    public function compileAggregate(SelectQuery $query, AggregateFunction $function, Expression $column): CompiledQuery
     {
         $this->count = $query;
         $this->countColumn = $column;
+        $this->aggregateFunction = $function;
 
         return $this->result;
     }

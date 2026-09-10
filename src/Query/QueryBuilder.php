@@ -31,6 +31,7 @@ use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
 use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Query\Operator\BooleanOperator;
+use Dirthara\Database\Query\Aggregate\AggregateFunction;
 use Dirthara\Database\Query\Operator\ComparisonOperator;
 use Dirthara\Database\Query\Expression\ExpressionFactory;
 use Dirthara\Database\Connection\Exceptions\QueryException;
@@ -67,6 +68,8 @@ final class QueryBuilder
      * @var list<OrderBy>
      */
     private array $orders = [];
+
+    private bool $distinct = false;
 
     private ?int $limit = null;
 
@@ -111,6 +114,13 @@ final class QueryBuilder
     public function selectRaw(string $sql, array $bindings = []): self
     {
         $this->columns[] = new RawExpression($sql, $bindings);
+
+        return $this;
+    }
+
+    public function distinct(bool $distinct = true): self
+    {
+        $this->distinct = $distinct;
 
         return $this;
     }
@@ -496,15 +506,43 @@ final class QueryBuilder
      */
     public function count(string|Expression $column = '*'): int
     {
-        $query = $this->grammar->compileCount($this->toSelectQuery(), ExpressionFactory::from($column));
+        return (int) $this->aggregate(AggregateFunction::Count, $column);
+    }
 
-        $row = $this->connection->execute($query->sql, $query->bindings)->first();
+    /**
+     * @throws QueryException
+     * @throws ConnectionException
+     */
+    public function sum(string|Expression $column): string|int|float|bool|null
+    {
+        return $this->aggregate(AggregateFunction::Sum, $column);
+    }
 
-        if ($row === null) {
-            return 0;
-        }
+    /**
+     * @throws QueryException
+     * @throws ConnectionException
+     */
+    public function avg(string|Expression $column): string|int|float|bool|null
+    {
+        return $this->aggregate(AggregateFunction::Average, $column);
+    }
 
-        return (int) reset($row);
+    /**
+     * @throws QueryException
+     * @throws ConnectionException
+     */
+    public function min(string|Expression $column): string|int|float|bool|null
+    {
+        return $this->aggregate(AggregateFunction::Minimum, $column);
+    }
+
+    /**
+     * @throws QueryException
+     * @throws ConnectionException
+     */
+    public function max(string|Expression $column): string|int|float|bool|null
+    {
+        return $this->aggregate(AggregateFunction::Maximum, $column);
     }
 
     /**
@@ -592,6 +630,7 @@ final class QueryBuilder
         return new SelectQuery(
             table: $this->table,
             columns: $this->columns === [] ? [new Identifier('*')] : $this->columns,
+            distinct: $this->distinct,
             joins: $this->joins,
             wheres: $this->wheres,
             groups: $this->groups,
@@ -653,6 +692,33 @@ final class QueryBuilder
         );
 
         return $this;
+    }
+
+    /**
+     * @throws QueryException
+     * @throws ConnectionException
+     */
+    private function aggregate(AggregateFunction $function, string|Expression $column): string|int|float|bool|null
+    {
+        if ($function !== AggregateFunction::Count && $this->groups !== []) {
+            throw new LogicException(sprintf(
+                'A grouped query has one %s per group; add it to the selection instead.',
+                $function->value,
+            ));
+        }
+
+        $query = $this->grammar->compileAggregate($this->toSelectQuery(), $function, ExpressionFactory::from($column));
+
+        $row = $this->connection->execute($query->sql, $query->bindings)->first();
+
+        if ($row === null) {
+            return null;
+        }
+
+        // @mago-expect analysis:mixed-assignment
+        $value = reset($row);
+
+        return is_scalar($value) ? $value : null;
     }
 
     private function addWhereNull(string|Expression $column, bool $negated, BooleanOperator $boolean): self

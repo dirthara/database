@@ -9,6 +9,7 @@ use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Expression\Identifier;
+use Dirthara\Database\Query\Aggregate\AggregateFunction;
 
 final class QueryBuilderExecutionTest extends QueryBuilderTestCase
 {
@@ -179,6 +180,67 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
 
         self::assertNotNull($this->grammar->count);
         self::assertCount(1, $this->grammar->count->wheres);
+    }
+
+    #[Test]
+    public function it_sums_a_column(): void
+    {
+        $builder = $this->executing('SELECT SUM(active) AS aggregate FROM users');
+
+        self::assertSame(1, $builder->sum('active'));
+        self::assertSame(AggregateFunction::Sum, $this->grammar->aggregateFunction);
+        self::assertNotNull($this->grammar->countColumn);
+        self::assertSame('active', self::identifier($this->grammar->countColumn)->name);
+    }
+
+    #[Test]
+    public function it_averages_a_column(): void
+    {
+        self::assertSame(0.5, $this->executing('SELECT AVG(active) AS aggregate FROM users')->avg('active'));
+        self::assertSame(AggregateFunction::Average, $this->grammar->aggregateFunction);
+    }
+
+    #[Test]
+    public function it_takes_the_smallest_value(): void
+    {
+        self::assertSame('Ada', $this->executing('SELECT MIN(name) AS aggregate FROM users')->min('name'));
+        self::assertSame(AggregateFunction::Minimum, $this->grammar->aggregateFunction);
+    }
+
+    #[Test]
+    public function it_takes_the_largest_value(): void
+    {
+        self::assertSame('Grace', $this->executing('SELECT MAX(name) AS aggregate FROM users')->max('name'));
+        self::assertSame(AggregateFunction::Maximum, $this->grammar->aggregateFunction);
+    }
+
+    #[Test]
+    public function an_aggregate_over_no_rows_is_null(): void
+    {
+        self::assertNull($this->executing('SELECT MAX(name) AS aggregate FROM users WHERE 0')->max('name'));
+    }
+
+    #[Test]
+    public function an_aggregate_without_a_row_is_null(): void
+    {
+        self::assertNull($this->executing('SELECT 1 AS aggregate FROM users WHERE 0')->max('name'));
+    }
+
+    #[Test]
+    public function it_rejects_an_aggregate_over_a_grouped_query(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('A grouped query has one SUM per group; add it to the selection instead.');
+
+        $this->executing('SELECT SUM(active) AS aggregate FROM users')->groupBy('name')->sum('active');
+    }
+
+    #[Test]
+    public function it_counts_a_grouped_query(): void
+    {
+        $this->executing('SELECT COUNT(*) AS aggregate FROM users')->groupBy('name')->count();
+
+        self::assertSame(AggregateFunction::Count, $this->grammar->aggregateFunction);
     }
 
     #[Test]

@@ -26,6 +26,7 @@ use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Query\Operator\BooleanOperator;
 use Dirthara\Database\Query\Grammar\MySqlQueryGrammar;
+use Dirthara\Database\Query\Aggregate\AggregateFunction;
 use Dirthara\Database\Query\Operator\ComparisonOperator;
 use Dirthara\Database\Tests\Query\Grammar\Doubles\UnsupportedExpression;
 
@@ -47,6 +48,114 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
 
         self::assertSame('SELECT * FROM `users`', $query->sql);
         self::assertSame([], $query->bindings);
+    }
+
+    #[Test]
+    public function it_selects_distinct_rows(): void
+    {
+        self::assertSame(
+            'SELECT DISTINCT `role` FROM `users`',
+            $this->grammar->compileSelect($this->select(columns: $this->columns('role'), distinct: true))->sql,
+        );
+    }
+
+    #[Test]
+    public function it_selects_distinct_rows_with_a_limit(): void
+    {
+        self::assertSame(
+            'SELECT DISTINCT `role` FROM `users` LIMIT 5',
+            $this->grammar->compileSelect($this->select(
+                columns: $this->columns('role'),
+                distinct: true,
+                limit: 5,
+            ))->sql,
+        );
+    }
+
+    #[Test]
+    public function it_counts_distinct_rows_with_a_derived_table(): void
+    {
+        self::assertSame(
+            'SELECT COUNT(*) AS `aggregate` FROM (SELECT DISTINCT `role` FROM `users`) AS `aggregate`',
+            $this->grammar->compileAggregate(
+                $this->select(columns: $this->columns('role'), distinct: true),
+                AggregateFunction::Count,
+                new Identifier('*'),
+            )->sql,
+        );
+    }
+
+    #[Test]
+    public function it_sums_a_column(): void
+    {
+        $query = $this->grammar->compileAggregate(
+            $this->select(wheres: [
+                new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And),
+            ]),
+            AggregateFunction::Sum,
+            new Identifier('amount'),
+        );
+
+        self::assertSame('SELECT SUM(`amount`) AS `aggregate` FROM `users` WHERE `active` = ?', $query->sql);
+        self::assertSame([1], $query->bindings);
+    }
+
+    #[Test]
+    public function it_sums_distinct_values(): void
+    {
+        self::assertSame(
+            'SELECT SUM(DISTINCT `amount`) AS `aggregate` FROM `users`',
+            $this->grammar->compileAggregate(
+                $this->select(distinct: true),
+                AggregateFunction::Sum,
+                new Identifier('amount'),
+            )->sql,
+        );
+    }
+
+    #[Test]
+    public function it_compiles_every_aggregate_function(): void
+    {
+        foreach (AggregateFunction::cases() as $function) {
+            if ($function === AggregateFunction::Count) {
+                continue;
+            }
+
+            self::assertSame(
+                sprintf('SELECT %s(`amount`) AS `aggregate` FROM `users`', $function->value),
+                $this->grammar->compileAggregate($this->select(), $function, new Identifier('amount'))->sql,
+            );
+        }
+    }
+
+    #[Test]
+    public function it_drops_ordering_and_paging_from_an_aggregate(): void
+    {
+        self::assertSame(
+            'SELECT MAX(`amount`) AS `aggregate` FROM `users`',
+            $this->grammar->compileAggregate(
+                $this->select(
+                    orders: [new OrderBy(new Identifier('name'), OrderDirection::Ascending)],
+                    limit: 10,
+                    offset: 5,
+                ),
+                AggregateFunction::Maximum,
+                new Identifier('amount'),
+            )->sql,
+        );
+    }
+
+    #[Test]
+    public function it_aggregates_a_raw_expression(): void
+    {
+        $query = $this->grammar->compileAggregate(
+            $this->select(),
+            AggregateFunction::Sum,
+            new RawExpression('amount * ?', [2]),
+        );
+
+        self::assertSame('SELECT SUM(amount * ?) AS `aggregate` FROM `users`', $query->sql);
+        self::assertSame([2], $query->bindings);
     }
 
     #[Test]
@@ -284,10 +393,11 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     #[Test]
     public function it_counts_a_raw_expression(): void
     {
-        $query = $this->grammar->compileCount(
+        $query = $this->grammar->compileAggregate(
             $this->select(wheres: [
                 new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And),
             ]),
+            AggregateFunction::Count,
             new RawExpression('DISTINCT NULLIF(role, ?)', ['guest']),
         );
 
@@ -737,7 +847,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     #[Test]
     public function it_counts_rows(): void
     {
-        $query = $this->grammar->compileCount($this->select(), new Identifier('*'));
+        $query = $this->grammar->compileAggregate($this->select(), AggregateFunction::Count, new Identifier('*'));
 
         self::assertSame('SELECT COUNT(*) AS `aggregate` FROM `users`', $query->sql);
         self::assertSame([], $query->bindings);
@@ -748,20 +858,21 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     {
         self::assertSame(
             'SELECT COUNT(`name`) AS `aggregate` FROM `users`',
-            $this->grammar->compileCount($this->select(), new Identifier('name'))->sql,
+            $this->grammar->compileAggregate($this->select(), AggregateFunction::Count, new Identifier('name'))->sql,
         );
     }
 
     #[Test]
     public function it_drops_ordering_and_paging_from_a_count(): void
     {
-        $query = $this->grammar->compileCount(
+        $query = $this->grammar->compileAggregate(
             $this->select(
                 wheres: [new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
                 orders: [new OrderBy(new Identifier('name'), OrderDirection::Ascending)],
                 limit: 10,
                 offset: 5,
             ),
+            AggregateFunction::Count,
             new Identifier('*'),
         );
 
@@ -772,12 +883,13 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     #[Test]
     public function it_counts_the_rows_of_a_grouped_query(): void
     {
-        $query = $this->grammar->compileCount(
+        $query = $this->grammar->compileAggregate(
             $this->select(
                 columns: $this->columns('role'),
                 wheres: [new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
                 groups: $this->columns('role'),
             ),
+            AggregateFunction::Count,
             new Identifier('*'),
         );
 
@@ -792,8 +904,9 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     #[Test]
     public function it_counts_the_groups_of_a_query_without_chosen_columns(): void
     {
-        $query = $this->grammar->compileCount(
+        $query = $this->grammar->compileAggregate(
             $this->select(groups: $this->columns('role', 'team')),
+            AggregateFunction::Count,
             new Identifier('*'),
         );
 

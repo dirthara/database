@@ -24,6 +24,7 @@ use Dirthara\Database\Query\Clause\OrderDirection;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Query\Operator\BooleanOperator;
+use Dirthara\Database\Query\Aggregate\AggregateFunction;
 use Dirthara\Database\Query\Operator\ComparisonOperator;
 use Dirthara\Database\Query\Grammar\PostgresSqlQueryGrammar;
 use Dirthara\Database\Tests\Query\Grammar\Doubles\UnsupportedWhere;
@@ -381,7 +382,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     {
         self::assertSame(
             'SELECT COUNT(*) AS "aggregate" FROM "users"',
-            $this->grammar->compileCount($this->select(), new Identifier('*'))->sql,
+            $this->grammar->compileAggregate($this->select(), AggregateFunction::Count, new Identifier('*'))->sql,
         );
     }
 
@@ -390,20 +391,21 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     {
         self::assertSame(
             'SELECT COUNT("name") AS "aggregate" FROM "users"',
-            $this->grammar->compileCount($this->select(), new Identifier('name'))->sql,
+            $this->grammar->compileAggregate($this->select(), AggregateFunction::Count, new Identifier('name'))->sql,
         );
     }
 
     #[Test]
     public function it_drops_ordering_and_paging_from_a_count(): void
     {
-        $query = $this->grammar->compileCount(
+        $query = $this->grammar->compileAggregate(
             $this->select(
                 wheres: [new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
                 orders: [new OrderBy(new Identifier('name'), OrderDirection::Ascending)],
                 limit: 10,
                 offset: 5,
             ),
+            AggregateFunction::Count,
             new Identifier('*'),
         );
 
@@ -416,7 +418,11 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     {
         self::assertSame(
             'SELECT COUNT(*) AS "aggregate" FROM (SELECT "role" FROM "users" GROUP BY "role") AS "aggregate"',
-            $this->grammar->compileCount($this->select(groups: $this->columns('role')), new Identifier('*'))->sql,
+            $this->grammar->compileAggregate(
+                $this->select(groups: $this->columns('role')),
+                AggregateFunction::Count,
+                new Identifier('*'),
+            )->sql,
         );
     }
 

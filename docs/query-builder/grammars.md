@@ -94,10 +94,25 @@ Ordering is dropped from the wrapped query, since ordering rows that only need
 to be counted changes nothing — and SQL Server rejects `ORDER BY` in a subquery
 that has no `TOP` or `OFFSET`.
 
-## Counting
+## Distinct
 
-`count()` drops ordering and paging. Over a grouped query it counts the groups by
-wrapping the query in a derived table:
+`DISTINCT` is emitted straight after `SELECT`, before the paging keyword:
+
+```sql
+SELECT DISTINCT `role` FROM `users` LIMIT 5      -- MySQL, PostgreSQL, SQLite
+SELECT DISTINCT TOP (5) [role] FROM [users]      -- SQL Server
+```
+
+:::note
+SQL Server requires that order. `SELECT TOP (5) DISTINCT …` is a syntax error, so
+the grammar puts `DISTINCT` in front of `compileTop()`'s slot rather than after
+it.
+:::
+
+## Counting and aggregating
+
+`count()` drops ordering and paging. Over a grouped or distinct query it counts
+the rows the query returns, by wrapping it in a derived table:
 
 ```sql
 SELECT COUNT(*) AS `aggregate` FROM (SELECT `role` FROM `users` GROUP BY `role`) AS `aggregate`
@@ -106,6 +121,23 @@ SELECT COUNT(*) AS `aggregate` FROM (SELECT `role` FROM `users` GROUP BY `role`)
 When nothing was selected, the derived table selects the grouped columns rather
 than `*`, because `SELECT *` beside a `GROUP BY` is rejected by MySQL under
 `only_full_group_by`, by PostgreSQL always, and by SQL Server always.
+
+`sum()`, `avg()`, `min()` and `max()` compile to `FUNC(column) AS aggregate` on
+every database, and to `FUNC(DISTINCT column)` when the query is distinct. All
+four accept that form.
+
+What differs is the type that comes back, which the package does not normalise:
+
+| | `sum()` over `INT` | `avg()` over `INT` | `min()` over `INT` |
+| --- | --- | --- | --- |
+| SQLite | `int` | `float` | `int` |
+| MySQL | `string` | `string` | `int` |
+| PostgreSQL | `int` | `string` | `int` |
+| SQL Server | `string` | `string`, truncated | `string` |
+
+SQL Server's `AVG` returns the column's type, so an average over an `INT` column
+is an integer there and a fraction everywhere else. Cast the column inside the
+query when that matters.
 
 ## Mutations
 

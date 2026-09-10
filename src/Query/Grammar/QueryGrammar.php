@@ -10,6 +10,7 @@ use Dirthara\Database\Query\Queries\SelectQuery;
 use Dirthara\Database\Query\Queries\UpdateQuery;
 use Dirthara\Database\Query\Expression\Expression;
 use Dirthara\Database\Query\Queries\CompiledQuery;
+use Dirthara\Database\Query\Aggregate\AggregateFunction;
 
 interface QueryGrammar
 {
@@ -17,7 +18,11 @@ interface QueryGrammar
 
     public function compileExists(SelectQuery $query): CompiledQuery;
 
-    public function compileCount(SelectQuery $query, Expression $column): CompiledQuery;
+    public function compileAggregate(
+        SelectQuery $query,
+        AggregateFunction $function,
+        Expression $column,
+    ): CompiledQuery;
 
     public function compileInsert(InsertQuery $query): CompiledQuery;
 
