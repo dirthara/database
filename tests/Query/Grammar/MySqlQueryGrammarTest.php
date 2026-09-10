@@ -6,6 +6,7 @@ namespace Dirthara\Database\Tests\Query\Grammar;
 
 use LogicException;
 use PHPUnit\Framework\Attributes\Test;
+use Dirthara\Database\Query\Clause\Union;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Join\JoinType;
 use Dirthara\Database\Query\Clause\OrderBy;
@@ -48,6 +49,96 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
 
         self::assertSame('SELECT * FROM `users`', $query->sql);
         self::assertSame([], $query->bindings);
+    }
+
+    #[Test]
+    public function it_unions_two_queries(): void
+    {
+        $query = $this->grammar->compileSelect($this->select(
+            columns: $this->columns('name'),
+            wheres: [new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)],
+            unions: [new Union($this->select(table: 'archived', columns: $this->columns('name'), wheres: [new Where(
+                new Identifier('active'),
+                ComparisonOperator::Equal,
+                0,
+                BooleanOperator::And,
+            )]), false)],
+        ));
+
+        self::assertSame(
+            'SELECT `name` FROM `users` WHERE `active` = ? UNION SELECT `name` FROM `archived` WHERE `active` = ?',
+            $query->sql,
+        );
+        self::assertSame([1, 0], $query->bindings);
+    }
+
+    #[Test]
+    public function it_unions_every_row(): void
+    {
+        self::assertSame(
+            'SELECT `name` FROM `users` UNION ALL SELECT `name` FROM `archived`',
+            $this->grammar->compileSelect($this->select(columns: $this->columns('name'), unions: [new Union(
+                $this->select(table: 'archived', columns: $this->columns('name')),
+                true,
+            )]))->sql,
+        );
+    }
+
+    #[Test]
+    public function it_unions_more_than_two_queries(): void
+    {
+        self::assertSame(
+            'SELECT `name` FROM `users` UNION SELECT `name` FROM `archived` UNION ALL SELECT `name` FROM `deleted`',
+            $this->grammar->compileSelect($this->select(columns: $this->columns('name'), unions: [
+                new Union($this->select(table: 'archived', columns: $this->columns('name')), false),
+                new Union($this->select(table: 'deleted', columns: $this->columns('name')), true),
+            ]))->sql,
+        );
+    }
+
+    #[Test]
+    public function it_orders_and_pages_the_whole_union(): void
+    {
+        self::assertSame(
+            'SELECT `name` FROM `users` UNION SELECT `name` FROM `archived` ORDER BY `name` ASC LIMIT 2 OFFSET 1',
+            $this->grammar->compileSelect($this->select(
+                columns: $this->columns('name'),
+                unions: [new Union($this->select(table: 'archived', columns: $this->columns('name')), false)],
+                orders: [new OrderBy(new Identifier('name'), OrderDirection::Ascending)],
+                limit: 2,
+                offset: 1,
+            ))->sql,
+        );
+    }
+
+    #[Test]
+    public function it_counts_a_union_with_a_derived_table(): void
+    {
+        $query = $this->grammar->compileAggregate($this->select(columns: $this->columns('name'), unions: [new Union(
+            $this->select(table: 'archived', columns: $this->columns('name')),
+            false,
+        )]), AggregateFunction::Count, new Identifier('*'));
+
+        self::assertSame(
+            'SELECT COUNT(*) AS `aggregate` FROM'
+            . ' (SELECT `name` FROM `users` UNION SELECT `name` FROM `archived`) AS `aggregate`',
+            $query->sql,
+        );
+    }
+
+    #[Test]
+    public function it_sums_a_union_with_a_derived_table(): void
+    {
+        $query = $this->grammar->compileAggregate($this->select(columns: $this->columns('amount'), unions: [new Union(
+            $this->select(table: 'archived', columns: $this->columns('amount')),
+            true,
+        )]), AggregateFunction::Sum, new Identifier('amount'));
+
+        self::assertSame(
+            'SELECT SUM(`amount`) AS `aggregate` FROM'
+            . ' (SELECT `amount` FROM `users` UNION ALL SELECT `amount` FROM `archived`) AS `aggregate`',
+            $query->sql,
+        );
     }
 
     #[Test]

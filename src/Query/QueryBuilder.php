@@ -7,6 +7,7 @@ namespace Dirthara\Database\Query;
 use Closure;
 use LogicException;
 use InvalidArgumentException;
+use Dirthara\Database\Query\Clause\Union;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Join\JoinType;
 use Dirthara\Database\Query\Clause\OrderBy;
@@ -69,6 +70,11 @@ final class QueryBuilder
      */
     private array $orders = [];
 
+    /**
+     * @var list<Union>
+     */
+    private array $unions = [];
+
     private bool $distinct = false;
 
     private ?int $limit = null;
@@ -116,6 +122,24 @@ final class QueryBuilder
         $this->columns[] = new RawExpression($sql, $bindings);
 
         return $this;
+    }
+
+    public function union(self $query, bool $all = false): self
+    {
+        $operand = $query->toSelectQuery();
+
+        if ($operand->orders !== [] || $operand->limit !== null || $operand->offset !== null) {
+            throw new LogicException('A union operand cannot order or page itself; order and page the union instead.');
+        }
+
+        $this->unions[] = new Union(query: $operand, all: $all);
+
+        return $this;
+    }
+
+    public function unionAll(self $query): self
+    {
+        return $this->union($query, true);
     }
 
     public function distinct(bool $distinct = true): self
@@ -635,6 +659,7 @@ final class QueryBuilder
             wheres: $this->wheres,
             groups: $this->groups,
             havings: $this->havings,
+            unions: $this->unions,
             orders: $this->orders,
             limit: $this->limit,
             offset: $this->offset,

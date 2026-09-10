@@ -6,6 +6,7 @@ namespace Dirthara\Database\Tests\Query\Grammar;
 
 use LogicException;
 use PHPUnit\Framework\Attributes\Test;
+use Dirthara\Database\Query\Clause\Union;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Join\JoinType;
 use Dirthara\Database\Query\Clause\OrderBy;
@@ -139,6 +140,35 @@ final class SqlServerQueryGrammarTest extends GrammarTestCase
     public function it_leaves_an_unpaged_query_unordered(): void
     {
         self::assertSame('SELECT * FROM [users]', $this->grammar->compileSelect($this->select())->sql);
+    }
+
+    #[Test]
+    public function it_pages_a_union_instead_of_using_top(): void
+    {
+        self::assertSame(
+            'SELECT [name] FROM [users] UNION SELECT [name] FROM [archived]'
+            . ' ORDER BY [name] ASC OFFSET 0 ROWS FETCH NEXT 2 ROWS ONLY',
+            $this->grammar->compileSelect($this->select(
+                columns: $this->columns('name'),
+                unions: [new Union($this->select(table: 'archived', columns: $this->columns('name')), false)],
+                orders: [new OrderBy(new Identifier('name'), OrderDirection::Ascending)],
+                limit: 2,
+            ))->sql,
+        );
+    }
+
+    #[Test]
+    public function it_orders_a_paged_union_by_its_first_column(): void
+    {
+        self::assertSame(
+            'SELECT [name] FROM [users] UNION SELECT [name] FROM [archived]'
+            . ' ORDER BY 1 OFFSET 0 ROWS FETCH NEXT 2 ROWS ONLY',
+            $this->grammar->compileSelect($this->select(
+                columns: $this->columns('name'),
+                unions: [new Union($this->select(table: 'archived', columns: $this->columns('name')), false)],
+                limit: 2,
+            ))->sql,
+        );
     }
 
     #[Test]

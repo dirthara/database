@@ -301,6 +301,56 @@ raw fragment often carries its own.
 offset-without-limit differently; the grammar handles it, and
 [Grammars](grammars.md#paging) shows what each one emits.
 
+## Unions
+
+`union()` and `unionAll()` append another query's rows to this one's:
+
+```php
+$archived = $database->table('archived')->select('name');
+
+$rows = $database->table('users')
+    ->select('name')
+    ->union($archived)
+    ->orderBy('name')
+    ->limit(20)
+    ->get();
+
+// SELECT `name` FROM `users` UNION SELECT `name` FROM `archived` ORDER BY `name` ASC LIMIT 20
+```
+
+`union()` removes duplicate rows; `unionAll()` keeps them. Both append, so a
+query can union several others.
+
+The ordering and paging belong to the **whole** union, not to the last operand —
+they are emitted after the last `SELECT`, which is what SQL means by them there.
+An operand that carries its own is refused:
+
+```php
+$database->table('users')->union($database->table('archived')->orderBy('name'));
+// LogicException: A union operand cannot order or page itself; order and page the union instead.
+```
+
+:::note
+That is not a limitation of the builder so much as of SQL. Ordering one operand
+of a compound requires parenthesising it, and SQLite rejects a parenthesised
+operand outright — so there is no form that works on all four databases. Order
+the union.
+:::
+
+:::caution
+A union orders by its **output** columns. `orderBy('users.name')` after a union
+is rejected by MySQL and PostgreSQL, because the individual tables are not in
+scope for the compound's `ORDER BY`. Order by the plain column name, or by an
+alias you selected.
+:::
+
+`count()`, `sum()` and the other aggregates wrap a union in a derived table, so
+they measure the compound rather than the first operand:
+
+```sql
+SELECT COUNT(*) AS `aggregate` FROM (SELECT `name` FROM `users` UNION SELECT `name` FROM `archived`) AS `aggregate`
+```
+
 ## Running it
 
 | Method | Returns |

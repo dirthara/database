@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Dirthara\Database\Tests\Query\Grammar;
 
 use PHPUnit\Framework\TestCase;
+use Dirthara\Database\Query\Clause\Union;
 use Dirthara\Database\Query\Join\JoinType;
 use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Join\JoinClause;
@@ -23,6 +24,7 @@ abstract class GrammarTestCase extends TestCase
      * @param list<WhereClause> $wheres
      * @param list<Expression> $groups
      * @param list<WhereClause> $havings
+     * @param list<Union> $unions
      * @param list<OrderBy> $orders
      */
     protected function select(
@@ -33,6 +35,7 @@ abstract class GrammarTestCase extends TestCase
         array $wheres = [],
         array $groups = [],
         array $havings = [],
+        array $unions = [],
         array $orders = [],
         ?int $limit = null,
         ?int $offset = null,
@@ -45,6 +48,7 @@ abstract class GrammarTestCase extends TestCase
             wheres: $wheres,
             groups: $groups,
             havings: $havings,
+            unions: $unions,
             orders: $orders,
             limit: $limit,
             offset: $offset,

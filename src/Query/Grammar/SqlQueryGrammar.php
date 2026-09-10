@@ -28,7 +28,7 @@ use Dirthara\Database\Query\Queries\CompiledQuery;
 use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Query\Aggregate\AggregateFunction;
 
-use function count;
+
 use function explode;
 use function implode;
 use function sprintf;
@@ -65,6 +65,23 @@ abstract class SqlQueryGrammar implements QueryGrammar
     public function compileAggregate(SelectQuery $query, AggregateFunction $function, Expression $column): CompiledQuery
     {
         $bindings = [];
+
+        if ($query->unions !== []) {
+            $aggregate = sprintf(
+                '%s(%s%s) AS %s',
+                $function->value,
+                $query->distinct && $function !== AggregateFunction::Count ? 'DISTINCT ' : '',
+                $this->wrap($column, $bindings),
+                $this->quote('aggregate'),
+            );
+
+            $inner = $this->compileSelectSql($this->aggregated($query, $query->distinct), $bindings);
+
+            return new CompiledQuery(
+                sprintf('SELECT %s FROM (%s) AS %s', $aggregate, $inner, $this->quote('aggregate')),
+                $bindings,
+            );
+        }
 
         if ($function === AggregateFunction::Count && ($query->groups !== [] || $query->distinct)) {
             $inner = $this->compileSelectSql(
@@ -170,6 +187,24 @@ abstract class SqlQueryGrammar implements QueryGrammar
      */
     protected function compileSelectSql(SelectQuery $query, array &$bindings, ?string $columns = null): string
     {
+        $sql = $this->compileSelectCore($query, $bindings, $columns);
+
+        foreach ($query->unions as $union) {
+            $sql .= sprintf(
+                ' UNION %s%s',
+                $union->all ? 'ALL ' : '',
+                $this->compileSelectCore($union->query, $bindings),
+            );
+        }
+
+        return $sql . $this->compileOrders($query, $bindings) . $this->compileLimit($query);
+    }
+
+    /**
+     * @param list<scalar|null> $bindings
+     */
+    protected function compileSelectCore(SelectQuery $query, array &$bindings, ?string $columns = null): string
+    {
         $columns ??= $this->compileExpressions($query->columns, $bindings);
 
         $sql = sprintf(
@@ -194,7 +229,7 @@ abstract class SqlQueryGrammar implements QueryGrammar
             $sql .= ' HAVING ' . $this->compileWheres($query->havings, $bindings);
         }
 
-        return $sql . $this->compileOrders($query, $bindings) . $this->compileLimit($query);
+        return $sql;
     }
 
     /**
@@ -379,15 +414,13 @@ abstract class SqlQueryGrammar implements QueryGrammar
             wheres: $query->wheres,
             groups: $query->groups,
             havings: $query->havings,
+            unions: $query->unions,
             orders: [],
             limit: null,
             offset: null,
         );
     }
 
-    /**
-     * The columns a grouped count selects: the groups themselves, unless columns were chosen.
-     */
     /**
      * @param list<scalar|null> $bindings
      */

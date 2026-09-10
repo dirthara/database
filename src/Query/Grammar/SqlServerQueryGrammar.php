@@ -17,20 +17,18 @@ final class SqlServerQueryGrammar extends SqlQueryGrammar
 
     protected function compileTop(SelectQuery $query): string
     {
-        if ($query->limit === null || $query->offset !== null) {
+        if ($query->limit === null || $query->offset !== null || $query->unions !== []) {
             return '';
         }
 
         return sprintf('TOP (%d) ', $query->limit);
     }
 
-    /**
-     * SQL Server only accepts OFFSET after an ORDER BY, so a paged query without one orders by nothing.
-     */
     protected function compileOrders(SelectQuery $query, array &$bindings): string
     {
-        if ($query->orders === [] && $query->offset !== null) {
-            return ' ORDER BY (SELECT NULL)';
+        if ($query->orders === [] && $this->paged($query)) {
+            // A compound orders by an output column, so a union pages by the first one.
+            return $query->unions === [] ? ' ORDER BY (SELECT NULL)' : ' ORDER BY 1';
         }
 
         return parent::compileOrders($query, $bindings);
@@ -38,15 +36,20 @@ final class SqlServerQueryGrammar extends SqlQueryGrammar
 
     protected function compileLimit(SelectQuery $query): string
     {
-        if ($query->offset === null) {
+        if (!$this->paged($query)) {
             return '';
         }
 
         if ($query->limit === null) {
-            return sprintf(' OFFSET %d ROWS', $query->offset);
+            return sprintf(' OFFSET %d ROWS', $query->offset ?? 0);
         }
 
-        return sprintf(' OFFSET %d ROWS FETCH NEXT %d ROWS ONLY', $query->offset, $query->limit);
+        return sprintf(' OFFSET %d ROWS FETCH NEXT %d ROWS ONLY', $query->offset ?? 0, $query->limit);
+    }
+
+    private function paged(SelectQuery $query): bool
+    {
+        return $query->offset !== null || $query->unions !== [] && $query->limit !== null;
     }
 
     /**

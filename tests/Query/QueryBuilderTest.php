@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Tests\Query;
 
+use LogicException;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Where;
@@ -193,6 +194,81 @@ final class QueryBuilderTest extends QueryBuilderTestCase
 
         self::assertInstanceOf(RawExpression::class, $columns[0]);
         self::assertSame([40, 'a', 'b'], $columns[0]->bindings);
+    }
+
+    #[Test]
+    public function it_unions_another_query(): void
+    {
+        $unions = $this->builder('users')->union($this->builder('archived'))->toSelectQuery()->unions;
+
+        self::assertCount(1, $unions);
+        self::assertEquals(new Identifier('archived'), $unions[0]->query->table);
+        self::assertFalse($unions[0]->all);
+    }
+
+    #[Test]
+    public function it_unions_every_row_of_another_query(): void
+    {
+        $unions = $this->builder('users')->unionAll($this->builder('archived'))->toSelectQuery()->unions;
+
+        self::assertTrue($unions[0]->all);
+    }
+
+    #[Test]
+    public function it_keeps_unions_in_the_order_they_were_added(): void
+    {
+        $unions = $this
+            ->builder('users')
+            ->union($this->builder('archived'))
+            ->unionAll($this->builder('deleted'))
+            ->toSelectQuery()
+            ->unions;
+
+        self::assertEquals(
+            [new Identifier('archived'), new Identifier('deleted')],
+            array_map(static fn($union) => $union->query->table, $unions),
+        );
+    }
+
+    #[Test]
+    public function it_has_no_unions_by_default(): void
+    {
+        self::assertSame([], $this->builder()->toSelectQuery()->unions);
+    }
+
+    #[Test]
+    public function it_rejects_an_ordered_union_operand(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('A union operand cannot order or page itself; order and page the union instead.');
+
+        $this->builder('users')->union($this->builder('archived')->orderBy('name'));
+    }
+
+    #[Test]
+    public function it_rejects_a_limited_union_operand(): void
+    {
+        $this->expectException(LogicException::class);
+
+        $this->builder('users')->union($this->builder('archived')->limit(1));
+    }
+
+    #[Test]
+    public function it_rejects_an_offset_union_operand(): void
+    {
+        $this->expectException(LogicException::class);
+
+        $this->builder('users')->union($this->builder('archived')->offset(1));
+    }
+
+    #[Test]
+    public function it_orders_and_pages_the_union_itself(): void
+    {
+        $query = $this->builder('users')->union($this->builder('archived'))->orderBy('name')->limit(2)->toSelectQuery();
+
+        self::assertCount(1, $query->orders);
+        self::assertSame(2, $query->limit);
+        self::assertSame([], $query->unions[0]->query->orders);
     }
 
     #[Test]
@@ -637,6 +713,8 @@ final class QueryBuilderTest extends QueryBuilderTestCase
 
         self::assertSame($builder, $builder->select('id'));
         self::assertSame($builder, $builder->distinct());
+        self::assertSame($builder, $builder->union($this->builder('archived')));
+        self::assertSame($builder, $builder->unionAll($this->builder('archived')));
         self::assertSame($builder, $builder->addSelect('name'));
         self::assertSame($builder, $builder->join('posts', 'users.id', '=', 'posts.user_id'));
         self::assertSame($builder, $builder->leftJoin('posts', 'users.id', '=', 'posts.user_id'));

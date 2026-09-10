@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Query\Queries;
 
+use Dirthara\Database\Query\Clause\Union;
 use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Join\JoinClause;
 use Dirthara\Database\Query\Clause\WhereClause;
@@ -17,6 +18,7 @@ final readonly class SelectQuery
      * @param list<WhereClause> $wheres
      * @param list<Expression> $groups
      * @param list<WhereClause> $havings
+     * @param list<Union> $unions
      * @param list<OrderBy> $orders
      * @param int|null $limit
      * @param int|null $offset
@@ -29,6 +31,7 @@ final readonly class SelectQuery
         public array $wheres,
         public array $groups,
         public array $havings,
+        public array $unions,
         public array $orders,
         public ?int $limit,
         public ?int $offset,

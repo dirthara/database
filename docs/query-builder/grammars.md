@@ -109,6 +109,41 @@ the grammar puts `DISTINCT` in front of `compileTop()`'s slot rather than after
 it.
 :::
 
+## Unions
+
+Operands are joined bare, with no parentheses around them, because SQLite is the
+one database that rejects a parenthesised operand. The compound's ordering and
+paging follow the last operand.
+
+| | SQLite | MySQL | PostgreSQL | SQL Server |
+| --- | --- | --- | --- | --- |
+| `UNION`, `UNION ALL` | yes | yes | yes | yes |
+| trailing `ORDER BY` | yes | yes | yes | yes |
+| trailing `LIMIT` | yes | yes | yes | **no** |
+| trailing `OFFSET … FETCH` | no | no | yes | yes |
+| parenthesised operand | **no** | yes | yes | yes |
+| `TOP` limiting the compound | — | — | — | **no** |
+
+SQL Server is the outlier twice over. It has no `LIMIT`, and `TOP` in the first
+operand limits *that operand* rather than the union, so a limited union is
+compiled with `OFFSET … FETCH` instead:
+
+```sql
+-- MySQL, PostgreSQL, SQLite
+SELECT `name` FROM `users` UNION SELECT `name` FROM `archived` ORDER BY `name` ASC LIMIT 2
+
+-- SQL Server
+SELECT [name] FROM [users] UNION SELECT [name] FROM [archived]
+  ORDER BY [name] ASC OFFSET 0 ROWS FETCH NEXT 2 ROWS ONLY
+```
+
+:::note
+`OFFSET … FETCH` needs an `ORDER BY`, and a compound's `ORDER BY` has to name an
+output column — `ORDER BY (SELECT NULL)`, which works for a plain select, is
+rejected on a union. So a paged union with no ordering of its own is ordered by
+its first output column, `ORDER BY 1`, which all four databases accept.
+:::
+
 ## Counting and aggregating
 
 `count()` drops ordering and paging. Over a grouped or distinct query it counts

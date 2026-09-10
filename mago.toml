@@ -25,3 +25,6 @@ enabled = false
 
 [linter.rules.kan-defect]
 enabled = false
+
+[linter.rules.too-many-properties]
+enabled = false
