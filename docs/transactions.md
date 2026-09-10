@@ -1,7 +1,7 @@
 ---
 id: transactions
 title: Transactions
-sidebar_position: 6
+sidebar_position: 8
 description: Run a callback in a transaction, nest it with savepoints, or drive begin and commit yourself.
 ---
 
@@ -38,6 +38,27 @@ $connection->transactions()->run(function () use ($connection): void {
     $connection->execute('UPDATE totals SET users = users + 1');
 });
 ```
+
+## From the Database
+
+[`Database::transaction()`](database.md#transactions) and
+`ConnectedDatabase::transaction()` wrap the same `run()`, and hand the callback a
+`ConnectedDatabase` so the query builder is available inside:
+
+```php
+$database->transaction(function (ConnectedDatabase $db): void {
+    $db->table('users')->insert(['name' => 'Ada']);
+    $db->table('totals')->where('id', '=', 1)->update(['users' => 1]);
+});
+```
+
+Everything below applies to those too, since they are the same manager.
+
+:::caution
+Only work that goes through the object the callback was given is inside the
+transaction. Reaching for a different connection — `$database->table('x', 'other')`
+— runs outside it and commits independently.
+:::
 
 The callback's return value is passed through, so a transaction can produce a
 value:

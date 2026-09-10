@@ -1,0 +1,286 @@
+---
+id: building-queries
+title: Building queries
+sidebar_position: 1
+description: Select columns, add conditions, join tables, group, order, and page a query.
+---
+
+# Building queries
+
+A builder comes from [`Database::table()`](../database.md) and collects clauses
+until something runs it.
+
+```php
+$rows = $database->table('users')
+    ->select('id', 'name')
+    ->where('active', '=', 1)
+    ->orderBy('name')
+    ->limit(20)
+    ->get();
+```
+
+Every clause method returns the same builder, so the order you call them in does
+not matter. The grammar assembles them in the order SQL needs.
+
+:::note
+A builder is mutable. Calling `->where(...)` changes the builder rather than
+returning a copy, so passing one around shares it. `newQuery()` gives you a
+fresh one.
+:::
+
+## Selecting columns
+
+| Method | Effect |
+| --- | --- |
+| `select(...$columns)` | Replaces the selection. With no arguments it clears it. |
+| `addSelect(...$columns)` | Appends to the selection. |
+| `selectRaw(string $sql, array $bindings = [])` | Appends a raw SQL fragment. |
+
+With nothing selected, the query selects `*`.
+
+```php
+$database->table('users')->select('id', 'users.name')->addSelect('email');
+
+$database->table('users')->selectRaw('COUNT(*) AS total');
+```
+
+Column names are quoted; raw fragments are not. Which is which is the subject of
+[Expressions](expressions.md), and it is the one thing worth reading before you
+write much of this.
+
+## Conditions
+
+Every condition has an `and` form and an `or` form. The first condition in a
+group ignores its own boolean, so `where()` and `orWhere()` are interchangeable
+as the opener.
+
+| Method | Compiles to |
+| --- | --- |
+| `where($column, $operator, $value)` | `column op ?` |
+| `whereNull($column)` / `whereNotNull($column)` | `column IS NULL` / `IS NOT NULL` |
+| `whereIn($column, $values)` / `whereNotIn(...)` | `column IN (?, ?)` / `NOT IN (…)` |
+| `whereBetween($column, $from, $to)` / `whereNotBetween(...)` | `column BETWEEN ? AND ?` |
+| `whereColumn($first, $operator, $second)` | `first op second` — no binding |
+| `whereNested(Closure $callback)` | `(…)` around whatever the callback adds |
+| `whereExists(QueryBuilder $query)` / `whereNotExists(...)` | `EXISTS (…)` / `NOT EXISTS (…)` |
+
+```php
+$database->table('users')
+    ->where('role', '=', 'admin')
+    ->orWhere('role', '=', 'owner')
+    ->whereNotNull('confirmed_at')
+    ->whereIn('team_id', [1, 2, 3])
+    ->whereBetween('age', 18, 65)
+    ->whereColumn('created_at', '<', 'updated_at');
+```
+
+### Operators
+
+The operator is a string or a `ComparisonOperator`. Strings are read
+case-insensitively, extra whitespace is collapsed, and `<>` is read as `!=`.
+
+| Operator | Also accepted as |
+| --- | --- |
+| `=` | |
+| `!=` | `<>` |
+| `>`, `>=`, `<`, `<=` | |
+| `LIKE`, `NOT LIKE` | `like`, `not like`, `Not   Like` |
+
+That is the whole list, because it is the whole set of operators that compare two
+values. `IN`, `IS NULL` and `BETWEEN` are not operators here — they are the
+clauses in the table above, and passing one as an operator throws:
+
+```php
+$database->table('users')->where('id', 'IN', [1, 2]);
+// InvalidArgumentException: The operator [IN] cannot compare two values;
+// expected one of =, !=, >, >=, <, <=, LIKE, NOT LIKE.
+```
+
+### Comparing to null
+
+`where()` reads a null value as a null test, because `column = NULL` is never
+true and is never what the caller meant:
+
+```php
+$database->table('users')->where('deleted_at', '=', null);   // WHERE deleted_at IS NULL
+$database->table('users')->where('deleted_at', '!=', null);  // WHERE deleted_at IS NOT NULL
+```
+
+Any other operator with a null value throws, rather than compiling a comparison
+that cannot match:
+
+```php
+$database->table('users')->where('age', '>', null);
+// InvalidArgumentException: Operator [GreaterThan (>)] cannot be used with NULL.
+```
+
+:::tip
+`whereNull()` says the same thing without depending on that reading. Prefer it
+when the value is a literal null; `where()` earns its keep when the value is a
+variable that might be null.
+:::
+
+### Empty membership tests
+
+An empty `whereIn()` cannot compile to `IN ()`, which is a syntax error on most
+databases. It compiles to a constant instead, which is what the condition
+actually means:
+
+```php
+$database->table('users')->whereIn('id', []);      // WHERE 1 = 0 — matches nothing
+$database->table('users')->whereNotIn('id', []);   // WHERE 1 = 1 — matches everything
+```
+
+:::caution
+`whereNotIn('id', [])` matching every row is correct but easy to walk into with
+a filter that came back empty. Check the list before you build the query if an
+empty filter should mean "no results".
+:::
+
+### Grouping conditions
+
+`whereNested()` receives a builder for the same table and wraps whatever it adds
+in parentheses:
+
+```php
+$database->table('users')
+    ->where('active', '=', 1)
+    ->whereNested(static function (QueryBuilder $query): void {
+        $query->where('role', '=', 'admin')->orWhere('role', '=', 'owner');
+    });
+
+// WHERE `active` = ? AND (`role` = ? OR `role` = ?)
+```
+
+A callback that adds no condition adds no parentheses, so a group built from an
+optional filter disappears when the filter is empty.
+
+### Subqueries
+
+`whereExists()` takes another builder. `newQuery()` gives you one on the same
+connection and grammar, so a function that receives only a builder can still
+build a correlated subquery:
+
+```php
+$users = $database->table('users');
+
+$users->whereExists(
+    $users->newQuery('posts')
+        ->select('id')
+        ->whereColumn('posts.user_id', '=', 'users.id')
+        ->where('views', '>', 10),
+);
+```
+
+The subquery's bindings are interleaved at the position its `EXISTS` appears, so
+conditions before and after it keep their values.
+
+:::note
+Ordering inside a subquery is dropped unless the subquery is also limited,
+because ordering rows that only need to exist changes nothing — and SQL Server
+rejects it outright.
+:::
+
+## Joining tables
+
+```php
+$database->table('users')
+    ->join('posts', 'users.id', '=', 'posts.user_id')
+    ->leftJoin('teams', 'users.team_id', '=', 'teams.id');
+```
+
+`join()` takes a `JoinType` as its fifth argument, defaulting to
+`JoinType::Inner`. `leftJoin()` and `rightJoin()` are shorthands.
+
+| Case | Emits |
+| --- | --- |
+| `JoinType::Inner` | `INNER JOIN` |
+| `JoinType::Left` | `LEFT JOIN` |
+| `JoinType::Right` | `RIGHT JOIN` |
+| `JoinType::Full` | `FULL JOIN` — [not supported by MySQL](grammars.md#joins) |
+
+Each join carries one condition. There is no `CROSS JOIN`, no `NATURAL JOIN`,
+and no multi-condition `ON` yet.
+
+## Grouping and filtering groups
+
+```php
+$database->table('users')
+    ->select('role')
+    ->selectRaw('COUNT(*) AS total')
+    ->groupBy('role')
+    ->having(new RawExpression('COUNT(*)'), '>', 1);
+```
+
+`groupBy()` appends, so repeated calls accumulate. `groupByRaw()` appends a raw
+fragment. `having()` and `orHaving()` take the same operators as `where()`.
+
+:::caution
+`having()` rejects a null value. `HAVING total = NULL` is never true, so an
+exception is more useful than an empty result set. There is no `havingNull()`
+yet, which means `HAVING … IS NULL` cannot be expressed.
+:::
+
+## Ordering and paging
+
+```php
+$database->table('users')
+    ->orderBy('name')
+    ->orderByDesc('created_at')
+    ->orderByRaw('FIELD(status, ?, ?)', ['live', 'draft'])
+    ->limit(20)
+    ->offset(40);
+```
+
+`orderBy()` takes an `OrderDirection`, defaulting to `Ascending`. `orderByDesc()`
+is a shorthand. `orderByRaw()` takes a direction as its third argument, since a
+raw fragment often carries its own.
+
+`limit()` and `offset()` reject negative values. Every database spells
+offset-without-limit differently; the grammar handles it, and
+[Grammars](grammars.md#paging) shows what each one emits.
+
+## Running it
+
+| Method | Returns |
+| --- | --- |
+| `get()` | `list<array<string, mixed>>` — every row. |
+| `first()` | `array<string, mixed>` or `null` — applies `LIMIT 1`. |
+| `cursor()` | `iterable` — rows one at a time. |
+| `exists()` | `bool` |
+| `count(string\|Expression $column = '*')` | `int` |
+
+```php
+$rows = $database->table('users')->where('active', '=', 1)->get();
+$user = $database->table('users')->where('id', '=', 7)->first();
+$total = $database->table('users')->count();
+
+foreach ($database->table('logs')->cursor() as $row) {
+    // one row at a time, never the whole table in memory
+}
+```
+
+`first()` applies its limit to a copy, so the builder it was called on keeps
+whatever limit you gave it.
+
+:::note
+`cursor()` is a generator: nothing is compiled or sent until you start iterating,
+so an exception from the query surfaces at the first `foreach`, not at the call.
+:::
+
+`count()` drops ordering and paging, since neither changes a count. Over a
+grouped query it counts the groups by wrapping the query in a derived table.
+
+## Inspecting without running
+
+```php
+$builder = $database->table('users')->where('active', '=', 1);
+
+$builder->toSql();          // SELECT * FROM `users` WHERE `active` = ?
+$builder->bindings();       // [1]
+$builder->compile();        // CompiledQuery { sql, bindings }
+$builder->toSelectQuery();  // the SelectQuery the grammar will compile
+```
+
+These are the same objects the terminal methods use, so what you see is what
+would run.

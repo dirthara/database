@@ -1,14 +1,14 @@
 ---
 id: error-handling
 title: Error handling
-sidebar_position: 7
+sidebar_position: 9
 description: The exception hierarchy, the context each exception carries, and how to log it.
 ---
 
 # Error handling
 
-Every exception the package throws extends `DatabaseException`, so one catch
-block covers the package:
+Everything that goes wrong *with the database* throws a `DatabaseException`, so
+one catch block covers it:
 
 ```php
 use Dirthara\Database\Exceptions\DatabaseException;
@@ -24,6 +24,11 @@ Errors are exceptions, never return values. The drivers set
 `PDO::ATTR_ERRMODE` to `PDO::ERRMODE_EXCEPTION`, and a `PDOException` is caught
 and rethrown as the package exception that fits, with the original as
 `getPrevious()`.
+
+Mistakes made while *building* a query are a separate hierarchy — SPL's
+`InvalidArgumentException` and `LogicException` — because they are bugs in the
+calling code rather than failures of the database. See
+[Building a query](#building-a-query).
 
 ## The hierarchy
 
@@ -51,6 +56,41 @@ the SQL or the schema is wrong.
 Because connections are lazy, `execute()` can throw a `ConnectionException`:
 it is the call that opens PDO, and a bad host surfaces there rather than at
 construction.
+:::
+
+## Building a query
+
+The query builder and the grammars validate before anything reaches the
+database, and those failures do not extend `DatabaseException`. Nothing was sent,
+nothing needs logging as an incident, and the fix is at the call site — so they
+are SPL exceptions.
+
+| Exception | Thrown when |
+| --- | --- |
+| `InvalidArgumentException` | The query cannot be described: an empty or malformed name, a name that looks like SQL, an operator that is not a comparison, a null value where a comparison needs one, an insert whose rows disagree on columns, a binding that is not `scalar\|null`, a negative limit or offset, or a grammar registered twice or not at all. |
+| `LogicException` | The query is describable but this database cannot express it: a limited or ordered update or delete on a driver without support, an offset on a mutation, a joined mutation, or `FULL JOIN` on MySQL. |
+
+The split is worth knowing when you decide what to catch. An
+`InvalidArgumentException` means the code is wrong on every database; a
+`LogicException` means the code is wrong on *this* one:
+
+```php
+use Dirthara\Database\Query\Expression\RawExpression;
+
+$database->table('users')->select('COUNT(*)');
+// InvalidArgumentException — wrong everywhere; use selectRaw() or a RawExpression.
+
+$database->table('users')->orderBy('created_at')->limit(1)->delete();
+// LogicException on PostgreSQL, SQLite, and SQL Server; fine on MySQL.
+```
+
+[Grammars](query-builder/grammars.md) lists which clauses each database refuses.
+
+:::note
+These are thrown while the query is compiled, which for `get()`, `first()`,
+`count()`, `insert()`, `update()` and `delete()` is when you call them. For
+`cursor()` it is when you start iterating, because compilation is deferred until
+then.
 :::
 
 ## Context

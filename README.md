@@ -5,8 +5,9 @@
 # Dirthara Database
 
 Database connections for the Dirthara framework. A thin layer over PDO that
-gives you named connections, parameter binding, forward-only result sets, and
-nested transactions backed by savepoints.
+gives you named connections, a query builder that compiles for MySQL,
+PostgreSQL, SQLite, and SQL Server, parameter binding, forward-only result sets,
+and nested transactions backed by savepoints.
 
 ## Installation
 

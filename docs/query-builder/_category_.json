@@ -1,0 +1,10 @@
+{
+  "label": "Query builder",
+  "position": 7,
+  "collapsed": false,
+  "link": {
+    "type": "generated-index",
+    "title": "Query builder",
+    "description": "Build a select, insert, update, or delete without writing the SQL, and know which parts each database refuses."
+  }
+}
