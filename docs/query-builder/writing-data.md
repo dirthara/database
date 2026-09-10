@@ -55,12 +55,40 @@ column wants.
 Values must be `scalar|null`. Anything else throws when the query is compiled,
 so encode an array and format a `DateTimeInterface` before you insert it.
 
-To read back a generated key, use the connection:
+## Reading back the generated key
+
+`insertGetId()` inserts one row and returns the key the database generated for
+it, as a `?string`:
 
 ```php
-$database->table('users')->insert(['name' => 'Ada']);
+$id = $database->table('users')->insertGetId(['name' => 'Ada']);
+```
 
-$id = $database->connection()->lastInsertId();
+The key column defaults to `id`. Pass another when it differs:
+
+```php
+$code = $database->table('regions')->insertGetId(['name' => 'North'], 'code');
+```
+
+It returns a string for the same reason
+[`lastInsertId()`](../queries/executing-queries.md#last-insert-id) does — a
+64-bit key does not always fit a PHP int, and some keys are not numeric. Cast it
+at the call site if you know better.
+
+:::note
+How the key is read differs per database, which is why the key column has to be
+named. PostgreSQL and SQL Server return it from the statement that generated it
+(`RETURNING` and `OUTPUT INSERTED`), because their connection-level answer is
+about the last sequence or identity the *session* produced — a trigger inserting
+into another table makes that the wrong row. MySQL and SQLite have neither
+clause, and their connection-level answer is unambiguous, so they use it.
+:::
+
+Only one row can return one key, so a multi-row insert is refused:
+
+```php
+$database->table('users')->insertGetId([['name' => 'Ada'], ['name' => 'Grace']]);
+// LogicException: An insert that returns a key must have exactly one row.
 ```
 
 ## Updating

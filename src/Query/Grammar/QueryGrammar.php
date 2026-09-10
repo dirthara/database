@@ -9,6 +9,7 @@ use Dirthara\Database\Query\Queries\InsertQuery;
 use Dirthara\Database\Query\Queries\SelectQuery;
 use Dirthara\Database\Query\Queries\UpdateQuery;
 use Dirthara\Database\Query\Expression\Expression;
+use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
 use Dirthara\Database\Query\Aggregate\AggregateFunction;
 
@@ -25,6 +26,8 @@ interface QueryGrammar
     ): CompiledQuery;
 
     public function compileInsert(InsertQuery $query): CompiledQuery;
+
+    public function compileInsertReturning(InsertQuery $query, Identifier $key): ?CompiledQuery;
 
     public function compileUpdate(UpdateQuery $query): CompiledQuery;
 

@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Query\Grammar;
 
+use Dirthara\Database\Query\Queries\InsertQuery;
 use Dirthara\Database\Query\Queries\SelectQuery;
+use Dirthara\Database\Query\Expression\Identifier;
+use Dirthara\Database\Query\Queries\CompiledQuery;
 
 use function sprintf;
 
@@ -13,6 +16,14 @@ final class SqlServerQueryGrammar extends SqlQueryGrammar
     protected function quote(string $identifier): string
     {
         return $this->escape($identifier, '[', ']');
+    }
+
+    public function compileInsertReturning(InsertQuery $query, Identifier $key): ?CompiledQuery
+    {
+        $bindings = [];
+        $returning = sprintf(' OUTPUT INSERTED.%s', $this->wrapIdentifier($key));
+
+        return new CompiledQuery($this->insertSql($query, $bindings, $returning), $bindings);
     }
 
     protected function compileTop(SelectQuery $query): string

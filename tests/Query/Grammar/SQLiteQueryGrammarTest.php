@@ -246,6 +246,14 @@ final class SQLiteQueryGrammarTest extends GrammarTestCase
     }
 
     #[Test]
+    public function it_leaves_the_inserted_key_to_the_connection(): void
+    {
+        self::assertNull($this->grammar->compileInsertReturning(new InsertQuery(new Identifier('users'), [[
+            'name' => 'Ada',
+        ]]), new Identifier('id')));
+    }
+
+    #[Test]
     public function it_inserts_several_rows(): void
     {
         $query = $this->grammar->compileInsert(new InsertQuery(new Identifier('users'), [

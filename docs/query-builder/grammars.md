@@ -174,6 +174,37 @@ SQL Server's `AVG` returns the column's type, so an average over an `INT` column
 is an integer there and a fraction everywhere else. Cast the column inside the
 query when that matters.
 
+## Inserted keys
+
+`insertGetId()` needs the generated key back, and no two of these databases
+agree on how to ask.
+
+| | Returns the key with | Why |
+| --- | --- | --- |
+| MySQL | `lastInsertId()` | No `RETURNING`; the connection's answer is per-connection and reliable. |
+| SQLite | `lastInsertId()` | `RETURNING` needs 3.35+; the connection's answer avoids the version floor. |
+| PostgreSQL | `INSERT … RETURNING "id"` | `lastInsertId()` falls back to `lastval()`, the last sequence the *session* touched. |
+| SQL Server | `INSERT … OUTPUT INSERTED.[id] VALUES …` | `lastInsertId()` reports the last identity the session produced. |
+
+```sql
+INSERT INTO "users" ("name") VALUES (?) RETURNING "id"
+INSERT INTO [users] ([name]) OUTPUT INSERTED.[id] VALUES (?)
+```
+
+Note SQL Server's placement: `OUTPUT` sits between the column list and `VALUES`,
+not at the end.
+
+A grammar signals which it uses by returning a compiled statement from
+`compileInsertReturning()`, or `null` to say the key comes from the connection
+instead.
+
+:::note
+The two that use a clause do so for correctness rather than convenience. On
+PostgreSQL and SQL Server the connection-level answer describes the session, so
+a trigger that inserts into another table can make it report that row's key
+instead. `RETURNING` and `OUTPUT` name the row the statement inserted.
+:::
+
 ## Mutations
 
 | Clause | MySQL | PostgreSQL | SQLite | SQL Server |

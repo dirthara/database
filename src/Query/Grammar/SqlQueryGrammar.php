@@ -28,7 +28,6 @@ use Dirthara\Database\Query\Queries\CompiledQuery;
 use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Query\Aggregate\AggregateFunction;
 
-
 use function explode;
 use function implode;
 use function sprintf;
@@ -116,10 +115,23 @@ abstract class SqlQueryGrammar implements QueryGrammar
 
     public function compileInsert(InsertQuery $query): CompiledQuery
     {
+        $bindings = [];
+
+        return new CompiledQuery($this->insertSql($query, $bindings, ''), $bindings);
+    }
+
+    public function compileInsertReturning(InsertQuery $query, Identifier $key): ?CompiledQuery
+    {
+        return null;
+    }
+
+    /**
+     * @param list<scalar|null> $bindings
+     */
+    protected function insertSql(InsertQuery $query, array &$bindings, string $returning): string
+    {
         $rows = $this->insertRows($query);
         $columns = array_keys($rows[0]);
-
-        $bindings = [];
         $tuples = [];
         $table = $this->wrap($query->table, $bindings);
 
@@ -131,15 +143,20 @@ abstract class SqlQueryGrammar implements QueryGrammar
             $tuples[] = sprintf('(%s)', implode(', ', array_map(static fn(): string => '?', $columns)));
         }
 
-        return new CompiledQuery(
-            sprintf(
-                'INSERT INTO %s (%s) VALUES %s',
-                $table,
-                implode(', ', array_map($this->quote(...), $columns)),
-                implode(', ', $tuples),
-            ),
-            $bindings,
+        return sprintf(
+            'INSERT INTO %s (%s)%s VALUES %s',
+            $table,
+            implode(', ', array_map($this->quote(...), $columns)),
+            $returning,
+            implode(', ', $tuples),
         );
+    }
+
+    protected function wrapIdentifier(Identifier $identifier): string
+    {
+        $bindings = [];
+
+        return $this->wrap($identifier, $bindings);
     }
 
     public function compileUpdate(UpdateQuery $query): CompiledQuery

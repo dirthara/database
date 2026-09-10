@@ -594,6 +594,43 @@ final class QueryBuilder
      * @throws QueryException
      * @throws ConnectionException
      */
+    public function insertGetId(array $values, string $key = 'id'): ?string
+    {
+        $rows = $this->normaliseInsertRows($values);
+
+        if (count($rows) !== 1) {
+            throw new LogicException('An insert that returns a key must have exactly one row.');
+        }
+
+        $insert = new InsertQuery(table: $this->table, rows: $rows);
+        $returning = $this->grammar->compileInsertReturning($insert, new Identifier($key));
+
+        if ($returning === null) {
+            $compiled = $this->grammar->compileInsert($insert);
+
+            $this->connection->execute($compiled->sql, $compiled->bindings);
+
+            return $this->connection->lastInsertId();
+        }
+
+        $row = $this->connection->execute($returning->sql, $returning->bindings)->first();
+
+        if ($row === null) {
+            return null;
+        }
+
+        // @mago-expect analysis:mixed-assignment
+        $value = reset($row);
+
+        return is_scalar($value) ? (string) $value : null;
+    }
+
+    /**
+     * @param array<string, scalar|null> $values
+     *
+     * @throws QueryException
+     * @throws ConnectionException
+     */
     public function update(array $values): int
     {
         if ($values === []) {

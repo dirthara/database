@@ -9,6 +9,7 @@ use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Expression\Identifier;
+use Dirthara\Database\Query\Queries\CompiledQuery;
 use Dirthara\Database\Query\Aggregate\AggregateFunction;
 
 final class QueryBuilderExecutionTest extends QueryBuilderTestCase
@@ -288,6 +289,53 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
 
         // @mago-expect analysis:possibly-invalid-argument
         $this->executing('INSERT INTO users (name) VALUES (?)')->insert([['name' => 'Alan'], 'Edsger']);
+    }
+
+    #[Test]
+    public function it_reads_the_key_from_the_connection(): void
+    {
+        $builder = $this->executing('INSERT INTO users (name) VALUES (?)', ['Alan']);
+
+        self::assertSame('3', $builder->insertGetId(['name' => 'Alan']));
+        self::assertNotNull($this->grammar->insertKey);
+        self::assertSame('id', $this->grammar->insertKey->name);
+    }
+
+    #[Test]
+    public function it_reads_the_key_from_the_statement(): void
+    {
+        $builder = $this->executing('INSERT INTO users (name) VALUES (?)', ['Alan']);
+        $this->grammar->returning = new CompiledQuery('SELECT 42 AS id');
+
+        self::assertSame('42', $builder->insertGetId(['name' => 'Alan']));
+    }
+
+    #[Test]
+    public function it_asks_for_the_key_column_it_was_given(): void
+    {
+        $this->executing('INSERT INTO users (name) VALUES (?)', ['Alan'])->insertGetId(['name' => 'Alan'], 'code');
+
+        self::assertNotNull($this->grammar->insertKey);
+        self::assertSame('code', $this->grammar->insertKey->name);
+    }
+
+    #[Test]
+    public function a_statement_that_returns_no_key_is_null(): void
+    {
+        $builder = $this->executing('INSERT INTO users (name) VALUES (?)', ['Alan']);
+        $this->grammar->returning = new CompiledQuery('SELECT 1 AS id FROM users WHERE 0');
+
+        self::assertNull($builder->insertGetId(['name' => 'Alan']));
+    }
+
+    #[Test]
+    public function it_rejects_a_key_from_more_than_one_row(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('An insert that returns a key must have exactly one row.');
+
+        // @mago-expect analysis:invalid-argument
+        $this->executing('INSERT INTO users (name) VALUES (?)')->insertGetId([['name' => 'Ada'], ['name' => 'Grace']]);
     }
 
     #[Test]

@@ -10,6 +10,7 @@ use Dirthara\Database\Query\Queries\SelectQuery;
 use Dirthara\Database\Query\Queries\UpdateQuery;
 use Dirthara\Database\Query\Grammar\QueryGrammar;
 use Dirthara\Database\Query\Expression\Expression;
+use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
 use Dirthara\Database\Query\Aggregate\AggregateFunction;
 
@@ -33,6 +34,10 @@ final class RecordingGrammar implements QueryGrammar
     public ?UpdateQuery $update = null;
 
     public ?DeleteQuery $delete = null;
+
+    public ?Identifier $insertKey = null;
+
+    public ?CompiledQuery $returning = null;
 
     public function __construct(
         public CompiledQuery $result = new CompiledQuery('SELECT 1 AS one'),
@@ -66,6 +71,14 @@ final class RecordingGrammar implements QueryGrammar
         $this->insert = $query;
 
         return $this->result;
+    }
+
+    public function compileInsertReturning(InsertQuery $query, Identifier $key): ?CompiledQuery
+    {
+        $this->insert = $query;
+        $this->insertKey = $key;
+
+        return $this->returning;
     }
 
     public function compileUpdate(UpdateQuery $query): CompiledQuery

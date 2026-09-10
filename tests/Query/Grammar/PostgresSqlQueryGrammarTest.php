@@ -439,6 +439,18 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     }
 
     #[Test]
+    public function it_returns_the_inserted_key(): void
+    {
+        $query = $this->grammar->compileInsertReturning(new InsertQuery(new Identifier('users'), [[
+            'name' => 'Ada',
+        ]]), new Identifier('id'));
+
+        self::assertNotNull($query);
+        self::assertSame('INSERT INTO "users" ("name") VALUES (?) RETURNING "id"', $query->sql);
+        self::assertSame(['Ada'], $query->bindings);
+    }
+
+    #[Test]
     public function it_inserts_several_rows(): void
     {
         $query = $this->grammar->compileInsert(new InsertQuery(new Identifier('users'), [
