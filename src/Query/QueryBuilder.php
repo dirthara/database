@@ -114,12 +114,12 @@ final class QueryBuilder
         return $this;
     }
 
-    public function where(string|Expression $column, string|ComparisonOperator $operator, mixed $value = null): self
+    public function where(string|Expression $column, string|ComparisonOperator $operator, mixed $value): self
     {
         return $this->addBasicWhere(column: $column, operator: $operator, value: $value, boolean: BooleanOperator::And);
     }
 
-    public function orWhere(string|Expression $column, string|ComparisonOperator $operator, mixed $value = null): self
+    public function orWhere(string|Expression $column, string|ComparisonOperator $operator, mixed $value): self
     {
         return $this->addBasicWhere(column: $column, operator: $operator, value: $value, boolean: BooleanOperator::Or);
     }
@@ -307,7 +307,7 @@ final class QueryBuilder
         return $this;
     }
 
-    public function having(string|Expression $column, string|ComparisonOperator $operator, mixed $value = null): self // todo Is it logical to allow null here?
+    public function having(string|Expression $column, string|ComparisonOperator $operator, mixed $value): self
     {
         return $this->addHaving(
             column: ExpressionFactory::from($column),
@@ -317,7 +317,7 @@ final class QueryBuilder
         );
     }
 
-    public function orHaving(string|Expression $column, string|ComparisonOperator $operator, mixed $value = null): self // todo Is it logical to allow null here?
+    public function orHaving(string|Expression $column, string|ComparisonOperator $operator, mixed $value): self
     {
         return $this->addHaving(
             column: ExpressionFactory::from($column),
@@ -668,6 +668,10 @@ final class QueryBuilder
         mixed $value,
         BooleanOperator $boolean,
     ): self {
+        if ($value === null) {
+            throw new InvalidArgumentException('A having condition cannot compare to NULL.');
+        }
+
         $this->havings[] = new Where(
             column: ExpressionFactory::from($column),
             operator: $operator,

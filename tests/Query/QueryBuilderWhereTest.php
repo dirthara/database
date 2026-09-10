@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Tests\Query;
 
+use ArgumentCountError;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Where;
@@ -138,6 +139,15 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
 
         self::assertTrue($where->negated);
         self::assertSame(BooleanOperator::Or, $where->boolean);
+    }
+
+    #[Test]
+    public function it_needs_a_value_to_compare(): void
+    {
+        $this->expectException(ArgumentCountError::class);
+
+        // @mago-expect analysis:too-few-arguments
+        $this->builder()->where('id', '=');
     }
 
     #[Test]

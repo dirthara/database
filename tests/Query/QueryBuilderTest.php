@@ -475,14 +475,21 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     }
 
     #[Test]
-    public function it_binds_a_null_having_value_instead_of_testing_for_null(): void
+    public function it_rejects_a_null_having_value(): void
     {
-        $havings = $this->builder()->having('total', '=')->toSelectQuery()->havings;
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('A having condition cannot compare to NULL.');
 
-        $having = self::clause(Where::class, $havings[0]);
+        $this->builder()->having('total', '=', null);
+    }
 
-        self::assertNull($having->value);
-        self::assertSame(ComparisonOperator::Equal, $having->operator);
+    #[Test]
+    public function it_rejects_a_null_alternative_having_value(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('A having condition cannot compare to NULL.');
+
+        $this->builder()->orHaving('total', '=', null);
     }
 
     #[Test]
