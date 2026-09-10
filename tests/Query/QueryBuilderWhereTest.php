@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Tests\Query;
 
-use ValueError;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Where;
@@ -89,9 +88,23 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
     #[Test]
     public function it_rejects_an_unknown_operator(): void
     {
-        $this->expectException(ValueError::class);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'The operator [equals] cannot compare two values; expected one of =, !=, >, >=, <, <=, LIKE, NOT LIKE.',
+        );
 
         $this->builder()->where('name', 'equals', 'Ada');
+    }
+
+    #[Test]
+    public function it_rejects_an_operator_that_needs_its_own_clause(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'The operator [IN] cannot compare two values; expected one of =, !=, >, >=, <, <=, LIKE, NOT LIKE.',
+        );
+
+        $this->builder()->where('id', 'IN', [1, 2]);
     }
 
     #[Test]
@@ -293,6 +306,30 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
     }
 
     #[Test]
+    public function it_tests_a_range_as_an_alternative(): void
+    {
+        $wheres = $this->builder()->orWhereBetween('age', 18, 65)->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereBetween::class, $wheres[0]);
+
+        self::assertSame(18, $where->from);
+        self::assertSame(65, $where->to);
+        self::assertFalse($where->negated);
+        self::assertSame(BooleanOperator::Or, $where->boolean);
+    }
+
+    #[Test]
+    public function it_tests_outside_a_range_as_an_alternative(): void
+    {
+        $wheres = $this->builder()->orWhereNotBetween('age', 18, 65)->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereBetween::class, $wheres[0]);
+
+        self::assertTrue($where->negated);
+        self::assertSame(BooleanOperator::Or, $where->boolean);
+    }
+
+    #[Test]
     public function it_compares_two_columns(): void
     {
         $wheres = $this->builder()->whereColumn('created_at', '<', 'updated_at')->toSelectQuery()->wheres;
@@ -423,6 +460,29 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
     }
 
     #[Test]
+    public function it_tests_for_a_matching_subquery_as_an_alternative(): void
+    {
+        $wheres = $this->builder()->orWhereExists($this->builder('posts'))->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereExists::class, $wheres[0]);
+
+        self::assertEquals(new Identifier('posts'), $where->query->table);
+        self::assertFalse($where->negated);
+        self::assertSame(BooleanOperator::Or, $where->boolean);
+    }
+
+    #[Test]
+    public function it_tests_for_a_missing_subquery_as_an_alternative(): void
+    {
+        $wheres = $this->builder()->orWhereNotExists($this->builder('posts'))->toSelectQuery()->wheres;
+
+        $where = self::clause(WhereExists::class, $wheres[0]);
+
+        self::assertTrue($where->negated);
+        self::assertSame(BooleanOperator::Or, $where->boolean);
+    }
+
+    #[Test]
     public function it_returns_itself_from_every_condition_method(): void
     {
         $builder = $this->builder();
@@ -438,12 +498,16 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
         self::assertSame($builder, $builder->whereNotIn('id', [1]));
         self::assertSame($builder, $builder->orWhereNotIn('id', [1]));
         self::assertSame($builder, $builder->whereBetween('age', 1, 2));
+        self::assertSame($builder, $builder->orWhereBetween('age', 1, 2));
         self::assertSame($builder, $builder->whereNotBetween('age', 1, 2));
+        self::assertSame($builder, $builder->orWhereNotBetween('age', 1, 2));
         self::assertSame($builder, $builder->whereColumn('a', '=', 'b'));
         self::assertSame($builder, $builder->orWhereColumn('a', '=', 'b'));
         self::assertSame($builder, $builder->whereNested(static fn(QueryBuilder $query) => $query->whereNull('a')));
         self::assertSame($builder, $builder->orWhereNested(static fn(QueryBuilder $query) => $query->whereNull('a')));
         self::assertSame($builder, $builder->whereExists($this->builder('posts')));
+        self::assertSame($builder, $builder->orWhereExists($this->builder('posts')));
         self::assertSame($builder, $builder->whereNotExists($this->builder('posts')));
+        self::assertSame($builder, $builder->orWhereNotExists($this->builder('posts')));
     }
 }

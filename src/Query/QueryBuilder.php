@@ -197,28 +197,22 @@ final class QueryBuilder
 
     public function whereBetween(string|Expression $column, mixed $from, mixed $to): self
     {
-        $this->wheres[] = new WhereBetween(
-            column: ExpressionFactory::from($column),
-            from: $from,
-            to: $to,
-            negated: false,
-            boolean: BooleanOperator::And,
-        );
+        return $this->addWhereBetween($column, $from, $to, false, BooleanOperator::And);
+    }
 
-        return $this;
+    public function orWhereBetween(string|Expression $column, mixed $from, mixed $to): self
+    {
+        return $this->addWhereBetween($column, $from, $to, false, BooleanOperator::Or);
     }
 
     public function whereNotBetween(string|Expression $column, mixed $from, mixed $to): self
     {
-        $this->wheres[] = new WhereBetween(
-            column: ExpressionFactory::from($column),
-            from: $from,
-            to: $to,
-            negated: true,
-            boolean: BooleanOperator::And,
-        );
+        return $this->addWhereBetween($column, $from, $to, true, BooleanOperator::And);
+    }
 
-        return $this;
+    public function orWhereNotBetween(string|Expression $column, mixed $from, mixed $to): self
+    {
+        return $this->addWhereBetween($column, $from, $to, true, BooleanOperator::Or);
     }
 
     public function whereColumn(
@@ -228,7 +222,7 @@ final class QueryBuilder
     ): self {
         $this->wheres[] = new WhereColumn(
             first: ExpressionFactory::from($first),
-            operator: is_string($operator) ? ComparisonOperator::from(strtoupper($operator)) : $operator,
+            operator: ComparisonOperator::parse($operator),
             second: ExpressionFactory::from($second),
             boolean: BooleanOperator::And,
         );
@@ -243,7 +237,7 @@ final class QueryBuilder
     ): self {
         $this->wheres[] = new WhereColumn(
             first: ExpressionFactory::from($first),
-            operator: is_string($operator) ? ComparisonOperator::from(strtoupper($operator)) : $operator,
+            operator: ComparisonOperator::parse($operator),
             second: ExpressionFactory::from($second),
             boolean: BooleanOperator::Or,
         );
@@ -263,20 +257,22 @@ final class QueryBuilder
 
     public function whereExists(self $query): self
     {
-        $this->wheres[] = new WhereExists(
-            query: $query->toSelectQuery(),
-            negated: false,
-            boolean: BooleanOperator::And,
-        );
+        return $this->addWhereExists($query, false, BooleanOperator::And);
+    }
 
-        return $this;
+    public function orWhereExists(self $query): self
+    {
+        return $this->addWhereExists($query, false, BooleanOperator::Or);
     }
 
     public function whereNotExists(self $query): self
     {
-        $this->wheres[] = new WhereExists(query: $query->toSelectQuery(), negated: true, boolean: BooleanOperator::And);
+        return $this->addWhereExists($query, true, BooleanOperator::And);
+    }
 
-        return $this;
+    public function orWhereNotExists(self $query): self
+    {
+        return $this->addWhereExists($query, true, BooleanOperator::Or);
     }
 
     public function join(
@@ -289,7 +285,7 @@ final class QueryBuilder
         $this->joins[] = new JoinClause(
             table: ExpressionFactory::from($table),
             first: ExpressionFactory::from($first),
-            operator: is_string($operator) ? ComparisonOperator::from(strtoupper($operator)) : $operator,
+            operator: ComparisonOperator::parse($operator),
             second: ExpressionFactory::from($second),
             type: $type,
         );
@@ -306,7 +302,7 @@ final class QueryBuilder
         return $this->join(
             table: $table,
             first: $first,
-            operator: is_string($operator) ? ComparisonOperator::from(strtoupper($operator)) : $operator,
+            operator: ComparisonOperator::parse($operator),
             second: $second,
             type: JoinType::Left,
         );
@@ -321,7 +317,7 @@ final class QueryBuilder
         return $this->join(
             table: $table,
             first: $first,
-            operator: is_string($operator) ? ComparisonOperator::from(strtoupper($operator)) : $operator,
+            operator: ComparisonOperator::parse($operator),
             second: $second,
             type: JoinType::Right,
         );
@@ -348,7 +344,7 @@ final class QueryBuilder
     {
         return $this->addHaving(
             column: ExpressionFactory::from($column),
-            operator: is_string($operator) ? ComparisonOperator::from(strtoupper($operator)) : $operator,
+            operator: ComparisonOperator::parse($operator),
             value: $value,
             boolean: BooleanOperator::And,
         );
@@ -358,7 +354,7 @@ final class QueryBuilder
     {
         return $this->addHaving(
             column: ExpressionFactory::from($column),
-            operator: is_string($operator) ? ComparisonOperator::from(strtoupper($operator)) : $operator,
+            operator: ComparisonOperator::parse($operator),
             value: $value,
             boolean: BooleanOperator::Or,
         );
@@ -587,7 +583,7 @@ final class QueryBuilder
         mixed $value,
         BooleanOperator $boolean,
     ): self {
-        $operator = is_string($operator) ? ComparisonOperator::from(strtoupper($operator)) : $operator;
+        $operator = ComparisonOperator::parse($operator);
 
         if ($value === null) {
             if ($operator->isEquality()) {
@@ -642,6 +638,31 @@ final class QueryBuilder
             negated: $negated,
             boolean: $boolean,
         );
+
+        return $this;
+    }
+
+    private function addWhereBetween(
+        string|Expression $column,
+        mixed $from,
+        mixed $to,
+        bool $negated,
+        BooleanOperator $boolean,
+    ): self {
+        $this->wheres[] = new WhereBetween(
+            column: ExpressionFactory::from($column),
+            from: $from,
+            to: $to,
+            negated: $negated,
+            boolean: $boolean,
+        );
+
+        return $this;
+    }
+
+    private function addWhereExists(self $query, bool $negated, BooleanOperator $boolean): self
+    {
+        $this->wheres[] = new WhereExists(query: $query->toSelectQuery(), negated: $negated, boolean: $boolean);
 
         return $this;
     }

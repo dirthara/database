@@ -419,6 +419,29 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     }
 
     #[Test]
+    public function it_joins_a_range_with_or(): void
+    {
+        $query = $this->grammar->compileSelect($this->select(wheres: [
+            new Where(new Identifier('name'), ComparisonOperator::Equal, 'Ada', BooleanOperator::And),
+            new WhereBetween(new Identifier('age'), 18, 65, true, BooleanOperator::Or),
+        ]));
+
+        self::assertSame('SELECT * FROM `users` WHERE `name` = ? OR `age` NOT BETWEEN ? AND ?', $query->sql);
+        self::assertSame(['Ada', 18, 65], $query->bindings);
+    }
+
+    #[Test]
+    public function it_joins_a_subquery_with_or(): void
+    {
+        $query = $this->grammar->compileSelect($this->select(wheres: [
+            new Where(new Identifier('name'), ComparisonOperator::Equal, 'Ada', BooleanOperator::And),
+            new WhereExists($this->select(table: 'posts'), true, BooleanOperator::Or),
+        ]));
+
+        self::assertSame('SELECT * FROM `users` WHERE `name` = ? OR NOT EXISTS (SELECT * FROM `posts`)', $query->sql);
+    }
+
+    #[Test]
     public function it_compares_two_columns(): void
     {
         $query = $this->grammar->compileSelect($this->select(wheres: [

@@ -7,9 +7,9 @@ namespace Dirthara\Database\Query\Expression;
 use InvalidArgumentException;
 
 use function trim;
-use function count;
 use function sprintf;
-use function preg_split;
+use function preg_match;
+use function preg_match_all;
 
 final readonly class ExpressionFactory
 {
@@ -20,16 +20,16 @@ final readonly class ExpressionFactory
         }
 
         $value = trim($value);
-        $parts = preg_split('/\s+as\s+/i', $value) ?: [];
+        $matches = [];
 
-        if (count($parts) === 1) {
-            return new Identifier($value);
-        }
-
-        if (count($parts) > 2) {
+        if ((int) preg_match_all('/\s+as\s+/i', $value) > 1) {
             throw new InvalidArgumentException(sprintf('The expression [%s] has more than one alias.', $value));
         }
 
-        return new Aliased(new Identifier(trim($parts[0])), trim($parts[1]));
+        if (preg_match('/^(.+?)\s+as\s+(.+)$/i', $value, $matches) === 1) {
+            return new Aliased(new Identifier(trim($matches[1])), trim($matches[2]));
+        }
+
+        return new Identifier($value);
     }
 }
