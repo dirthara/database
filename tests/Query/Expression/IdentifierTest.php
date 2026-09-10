@@ -12,7 +12,6 @@ use Dirthara\Database\Query\Expression\Aliased;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Expression\RawExpression;
 
-
 final class IdentifierTest extends TestCase
 {
     #[Test]
