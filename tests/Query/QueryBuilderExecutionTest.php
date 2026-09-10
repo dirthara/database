@@ -8,7 +8,6 @@ use LogicException;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Where;
-
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
 use Dirthara\Database\Query\Aggregate\AggregateFunction;
