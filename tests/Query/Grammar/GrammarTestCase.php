@@ -1,0 +1,55 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Dirthara\Database\Tests\Query\Grammar;
+
+use PHPUnit\Framework\TestCase;
+use Dirthara\Database\Query\Clause\OrderBy;
+use Dirthara\Database\Query\Join\JoinClause;
+use Dirthara\Database\Query\Clause\WhereClause;
+use Dirthara\Database\Query\Queries\SelectQuery;
+use Dirthara\Database\Query\Expression\Expression;
+
+abstract class GrammarTestCase extends TestCase
+{
+    /**
+     * @param list<Expression> $columns
+     * @param list<JoinClause> $joins
+     * @param list<WhereClause> $wheres
+     * @param list<Expression> $groups
+     * @param list<WhereClause> $havings
+     * @param list<OrderBy> $orders
+     */
+    protected function select(
+        string $table = 'users',
+        array $columns = [],
+        array $joins = [],
+        array $wheres = [],
+        array $groups = [],
+        array $havings = [],
+        array $orders = [],
+        ?int $limit = null,
+        ?int $offset = null,
+    ): SelectQuery {
+        return new SelectQuery(
+            table: $table,
+            columns: $columns === [] ? [new Expression('*')] : $columns,
+            joins: $joins,
+            wheres: $wheres,
+            groups: $groups,
+            havings: $havings,
+            orders: $orders,
+            limit: $limit,
+            offset: $offset,
+        );
+    }
+
+    /**
+     * @return list<Expression>
+     */
+    protected function columns(string ...$columns): array
+    {
+        return array_map(static fn(string $column): Expression => new Expression($column), array_values($columns));
+    }
+}

@@ -4,42 +4,44 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Query\Grammar;
 
-use Dirthara\Database\Query\Queries\DeleteQuery;
-use Dirthara\Database\Query\Queries\InsertQuery;
-use Dirthara\Database\Query\Queries\SelectQuery;
-use Dirthara\Database\Query\Queries\UpdateQuery;
-use Dirthara\Database\Query\Expression\Expression;
-use Dirthara\Database\Query\Queries\CompiledQuery;
+use LogicException;
+use Dirthara\Database\Query\Join\JoinType;
+use Dirthara\Database\Query\Join\JoinClause;
 
-class MySqlQueryGrammar implements QueryGrammar
+use function sprintf;
+
+final class MySqlQueryGrammar extends SqlQueryGrammar
 {
-    public function compileSelect(SelectQuery $query): CompiledQuery
+    /**
+     * The largest row count MySQL accepts for an offset that has no limit of its own.
+     */
+    private const string UNLIMITED = '18446744073709551615';
+
+    protected function quote(string $identifier): string
     {
-        // TODO: Implement compileSelect() method.
+        return $this->escape($identifier, '`');
     }
 
-    public function compileExists(SelectQuery $query): CompiledQuery
+    protected function compileJoin(JoinClause $join): string
     {
-        // TODO: Implement compileExists() method.
+        if ($join->type === JoinType::Full) {
+            throw new LogicException('MySQL does not support a full join.');
+        }
+
+        return parent::compileJoin($join);
     }
 
-    public function compileCount(SelectQuery $query, Expression $column): CompiledQuery
+    protected function compileLimit(?int $limit, ?int $offset): string
     {
-        // TODO: Implement compileCount() method.
+        if ($offset === null) {
+            return $limit === null ? '' : sprintf(' LIMIT %d', $limit);
+        }
+
+        return sprintf(' LIMIT %s OFFSET %d', $limit === null ? self::UNLIMITED : (string) $limit, $offset);
     }
 
-    public function compileInsert(InsertQuery $query): CompiledQuery
+    protected function compileMutationLimit(?int $limit, string $operation): string
     {
-        // TODO: Implement compileInsert() method.
-    }
-
-    public function compileUpdate(UpdateQuery $query): CompiledQuery
-    {
-        // TODO: Implement compileUpdate() method.
-    }
-
-    public function compileDelete(DeleteQuery $query): CompiledQuery
-    {
-        // TODO: Implement compileDelete() method.
+        return $limit === null ? '' : sprintf(' LIMIT %d', $limit);
     }
 }

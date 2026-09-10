@@ -7,7 +7,7 @@ namespace Dirthara\Database\Query\Queries;
 final readonly class CompiledQuery
 {
     /**
-     * @param list<array-key, scalar> $bindings
+     * @param list<scalar|null> $bindings
      */
     public function __construct(
         public string $sql,

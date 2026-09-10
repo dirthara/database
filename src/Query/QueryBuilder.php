@@ -80,9 +80,9 @@ final class QueryBuilder
 
     public function select(string|Expression ...$columns): self
     {
-        $this->columns = array_map(static fn($column) => is_string($column)
+        $this->columns = array_values(array_map(static fn($column) => is_string($column)
             ? new Expression($column)
-            : $column, $columns);
+            : $column, $columns));
 
         return $this;
     }

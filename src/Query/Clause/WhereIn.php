@@ -9,6 +9,9 @@ use Dirthara\Database\Query\Operator\BooleanOperator;
 
 final readonly class WhereIn implements WhereClause
 {
+    /**
+     * @param list<scalar> $values
+     */
     public function __construct(
         public Expression $column,
         public array $values,
