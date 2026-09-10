@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Tests\Query\Expression;
 
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Dirthara\Database\Query\Expression\Aliased;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Expression\RawExpression;
+
 
 final class IdentifierTest extends TestCase
 {
@@ -17,29 +21,87 @@ final class IdentifierTest extends TestCase
         self::assertSame('users.id', new Identifier('users.id')->name);
     }
 
-    #[Test]
-    public function it_wraps_a_name_in_an_identifier(): void
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function accepted(): array
     {
-        $identifier = Identifier::wrap('name');
-
-        self::assertInstanceOf(Identifier::class, $identifier);
-        self::assertSame('name', $identifier->name);
+        return [
+            'name' => ['name'],
+            'qualified name' => ['users.name'],
+            'wildcard' => ['*'],
+            'qualified wildcard' => ['users.*'],
+            'schema qualified' => ['app.users.name'],
+            'quoted keyword' => ['order'],
+            'name with a space' => ['first name'],
+            'name with a quote' => ['we`ird'],
+        ];
     }
 
     #[Test]
-    public function it_keeps_an_identifier_as_given(): void
+    #[DataProvider('accepted')]
+    public function it_accepts_a_name(string $name): void
     {
-        $identifier = new Identifier('name');
+        self::assertSame($name, new Identifier($name)->name);
+    }
 
-        self::assertSame($identifier, Identifier::wrap($identifier));
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function rejected(): array
+    {
+        return [
+            'empty' => ['', 'An identifier cannot be empty.'],
+            'blank' => ['   ', 'An identifier cannot be empty.'],
+            'trailing dot' => ['users.', 'The identifier [users.] has an empty segment.'],
+            'leading dot' => ['.users', 'The identifier [.users] has an empty segment.'],
+            'double dot' => ['a..b', 'The identifier [a..b] has an empty segment.'],
+            'function call' => [
+                'COUNT(*)',
+                'The identifier [COUNT(*)] looks like SQL rather than a name; use a raw expression instead.',
+            ],
+            'argument list' => [
+                'IFNULL(a, b)',
+                'The identifier [IFNULL(a, b)] looks like SQL rather than a name; use a raw expression instead.',
+            ],
+        ];
     }
 
     #[Test]
-    public function it_keeps_a_raw_expression_as_given(): void
+    #[DataProvider('rejected')]
+    public function it_rejects_anything_that_is_not_a_name(string $name, string $message): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        new Identifier($name);
+    }
+
+    #[Test]
+    public function an_alias_carries_its_expression_and_name(): void
+    {
+        $identifier = new Identifier('users');
+        $aliased = new Aliased($identifier, 'u');
+
+        self::assertSame($identifier, $aliased->expression);
+        self::assertSame('u', $aliased->alias);
+    }
+
+    #[Test]
+    public function an_alias_can_name_a_raw_expression(): void
     {
         $raw = new RawExpression('COUNT(*)');
 
-        self::assertSame($raw, Identifier::wrap($raw));
+        self::assertSame($raw, new Aliased($raw, 'total')->expression);
+    }
+
+    #[Test]
+    public function an_alias_cannot_be_empty(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('An alias cannot be empty.');
+
+        new Aliased(new Identifier('users'), '  ');
     }
 
     #[Test]

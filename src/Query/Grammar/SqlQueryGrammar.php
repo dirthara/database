@@ -15,6 +15,7 @@ use Dirthara\Database\Query\Clause\NestedWhere;
 use Dirthara\Database\Query\Clause\WhereClause;
 use Dirthara\Database\Query\Clause\WhereColumn;
 use Dirthara\Database\Query\Clause\WhereExists;
+use Dirthara\Database\Query\Expression\Aliased;
 use Dirthara\Database\Query\Clause\WhereBetween;
 use Dirthara\Database\Query\Queries\DeleteQuery;
 use Dirthara\Database\Query\Queries\InsertQuery;
@@ -390,6 +391,14 @@ abstract class SqlQueryGrammar implements QueryGrammar
             }
 
             return $expression->sql;
+        }
+
+        if ($expression instanceof Aliased) {
+            return sprintf(
+                '%s AS %s',
+                $this->wrap($expression->expression, $bindings),
+                $this->quote($expression->alias),
+            );
         }
 
         throw new LogicException(sprintf('Unsupported expression [%s].', $expression::class));

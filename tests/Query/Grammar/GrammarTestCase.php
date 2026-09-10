@@ -13,6 +13,7 @@ use Dirthara\Database\Query\Queries\SelectQuery;
 use Dirthara\Database\Query\Expression\Expression;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Operator\ComparisonOperator;
+use Dirthara\Database\Query\Expression\ExpressionFactory;
 
 abstract class GrammarTestCase extends TestCase
 {
@@ -36,7 +37,7 @@ abstract class GrammarTestCase extends TestCase
         ?int $offset = null,
     ): SelectQuery {
         return new SelectQuery(
-            table: Identifier::wrap($table),
+            table: ExpressionFactory::from($table),
             columns: $columns === [] ? [new Identifier('*')] : $columns,
             joins: $joins,
             wheres: $wheres,
@@ -51,7 +52,7 @@ abstract class GrammarTestCase extends TestCase
     protected function join(JoinType $type, string $table = 'posts'): JoinClause
     {
         return new JoinClause(
-            table: Identifier::wrap($table),
+            table: ExpressionFactory::from($table),
             first: new Identifier('users.id'),
             operator: ComparisonOperator::Equal,
             second: new Identifier($table . '.user_id'),
@@ -64,6 +65,6 @@ abstract class GrammarTestCase extends TestCase
      */
     protected function columns(string ...$columns): array
     {
-        return array_map(Identifier::wrap(...), array_values($columns));
+        return array_map(ExpressionFactory::from(...), array_values($columns));
     }
 }

@@ -15,6 +15,7 @@ use Dirthara\Database\Query\Clause\WhereNull;
 use Dirthara\Database\Query\Clause\NestedWhere;
 use Dirthara\Database\Query\Clause\WhereColumn;
 use Dirthara\Database\Query\Clause\WhereExists;
+use Dirthara\Database\Query\Expression\Aliased;
 use Dirthara\Database\Query\Clause\WhereBetween;
 use Dirthara\Database\Query\Queries\DeleteQuery;
 use Dirthara\Database\Query\Queries\InsertQuery;
@@ -53,6 +54,57 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
         self::assertSame(
             'SELECT * FROM `app`.`users`',
             $this->grammar->compileSelect($this->select(table: 'app.users'))->sql,
+        );
+    }
+
+    #[Test]
+    public function it_aliases_a_table(): void
+    {
+        self::assertSame(
+            'SELECT `u`.`name` FROM `users` AS `u`',
+            $this->grammar->compileSelect($this->select(
+                table: new Aliased(new Identifier('users'), 'u'),
+                columns: $this->columns('u.name'),
+            ))->sql,
+        );
+    }
+
+    #[Test]
+    public function it_aliases_a_column(): void
+    {
+        self::assertSame(
+            'SELECT `users`.`name` AS `n` FROM `users`',
+            $this->grammar->compileSelect($this->select(columns: [new Aliased(
+                new Identifier('users.name'),
+                'n',
+            )]))->sql,
+        );
+    }
+
+    #[Test]
+    public function it_aliases_a_raw_expression_and_keeps_its_bindings(): void
+    {
+        $query = $this->grammar->compileSelect($this->select(columns: [new Aliased(
+            new RawExpression('COALESCE(name, ?)', ['unknown']),
+            'name',
+        )], wheres: [new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And)]));
+
+        self::assertSame('SELECT COALESCE(name, ?) AS `name` FROM `users` WHERE `active` = ?', $query->sql);
+        self::assertSame(['unknown', 1], $query->bindings);
+    }
+
+    #[Test]
+    public function it_aliases_a_joined_table(): void
+    {
+        self::assertSame(
+            'SELECT * FROM `users` INNER JOIN `posts` AS `p` ON `users`.`id` = `p`.`user_id`',
+            $this->grammar->compileSelect($this->select(joins: [new JoinClause(
+                new Aliased(new Identifier('posts'), 'p'),
+                new Identifier('users.id'),
+                ComparisonOperator::Equal,
+                new Identifier('p.user_id'),
+                JoinType::Inner,
+            )]))->sql,
         );
     }
 

@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Join\JoinType;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Dirthara\Database\Query\Expression\Aliased;
 use Dirthara\Database\Query\Clause\OrderDirection;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
@@ -55,12 +56,11 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     }
 
     #[Test]
-    public function it_rejects_an_empty_table_identifier(): void
+    public function it_queries_an_aliased_table(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('A query table cannot be empty.');
+        $table = $this->builder('users as u')->toSelectQuery()->table;
 
-        $this->builder(new Identifier('  '));
+        self::assertEquals(new Aliased(new Identifier('users'), 'u'), $table);
     }
 
     #[Test]
@@ -93,7 +93,7 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     #[Test]
     public function it_keeps_a_selected_expression_as_given(): void
     {
-        $expression = new Identifier('COUNT(*)');
+        $expression = new RawExpression('COUNT(*)');
 
         self::assertSame([$expression], $this->builder()->select($expression)->toSelectQuery()->columns);
     }
@@ -168,13 +168,13 @@ final class QueryBuilderTest extends QueryBuilderTestCase
         $groups = $this
             ->builder()
             ->groupBy('role')
-            ->groupBy('team', new Identifier('DATE(created_at)'))
+            ->groupBy('team', new RawExpression('DATE(created_at)'))
             ->toSelectQuery()
             ->groups;
 
-        self::assertSame(
-            ['role', 'team', 'DATE(created_at)'],
-            array_map(static fn($group) => self::identifier($group)->name, $groups),
+        self::assertEquals(
+            [new Identifier('role'), new Identifier('team'), new RawExpression('DATE(created_at)')],
+            $groups,
         );
     }
 
@@ -428,7 +428,7 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     #[Test]
     public function it_keeps_a_having_expression_as_given(): void
     {
-        $expression = new Identifier('COUNT(*)');
+        $expression = new RawExpression('COUNT(*)');
 
         $havings = $this->builder()->having($expression, ComparisonOperator::GreaterThan, 1)->toSelectQuery()->havings;
 

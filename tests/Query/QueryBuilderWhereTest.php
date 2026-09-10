@@ -17,6 +17,7 @@ use Dirthara\Database\Query\Clause\WhereColumn;
 use Dirthara\Database\Query\Clause\WhereExists;
 use Dirthara\Database\Query\Clause\WhereBetween;
 use Dirthara\Database\Query\Expression\Identifier;
+use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Query\Operator\BooleanOperator;
 use Dirthara\Database\Query\Operator\ComparisonOperator;
 
@@ -96,7 +97,7 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
     #[Test]
     public function it_keeps_a_condition_expression_as_given(): void
     {
-        $expression = new Identifier('LOWER(name)');
+        $expression = new RawExpression('LOWER(name)');
 
         $wheres = $this->builder()->where($expression, '=', 'ada')->toSelectQuery()->wheres;
 
