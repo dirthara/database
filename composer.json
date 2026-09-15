@@ -7,7 +7,7 @@
         "ext-pdo": "*"
     },
     "require-dev": {
-        "phpunit/phpunit": "^12.0"
+        "phpunit/phpunit": "^12.0 || ^13.0"
     },
     "suggest": {
         "ext-pdo_mysql": "To connect with the MySQL driver",
