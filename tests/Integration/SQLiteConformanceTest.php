@@ -62,6 +62,29 @@ final class SQLiteConformanceTest extends TestCase
         return false;
     }
 
+    protected function supportsNamedLocks(): bool
+    {
+        return false;
+    }
+
+    #[Test]
+    public function it_refuses_to_acquire_a_named_lock(): void
+    {
+        $this->expectException(UnsupportedLockException::class);
+        $this->expectExceptionMessageIs('SQLite does not support named locks.');
+
+        $this->connection()->locks()->acquire('dirthara:conformance:alpha');
+    }
+
+    #[Test]
+    public function it_refuses_to_try_for_a_named_lock(): void
+    {
+        $this->expectException(UnsupportedLockException::class);
+        $this->expectExceptionMessageIs('SQLite does not support named locks.');
+
+        $this->connection()->locks()->tryAcquire('dirthara:conformance:alpha');
+    }
+
     /**
      * @return iterable<string, array{LockMode, LockWait}>
      */

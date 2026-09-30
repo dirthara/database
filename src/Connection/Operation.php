@@ -18,6 +18,8 @@ enum Operation: string
     case Savepoint = 'savepoint';
     case ReleaseSavepoint = 'release_savepoint';
     case RollbackToSavepoint = 'rollback_to_savepoint';
+    case AcquireLock = 'acquire_lock';
+    case ReleaseLock = 'release_lock';
 
     public function describe(): string
     {
@@ -34,6 +36,8 @@ enum Operation: string
             self::Savepoint => 'create a savepoint',
             self::ReleaseSavepoint => 'release a savepoint',
             self::RollbackToSavepoint => 'roll back to a savepoint',
+            self::AcquireLock => 'acquire a named lock',
+            self::ReleaseLock => 'release a named lock',
         };
     }
 }

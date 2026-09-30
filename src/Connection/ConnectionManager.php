@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Connection;
 
+use Dirthara\Database\Exception\NamedLockException;
 use Dirthara\Database\Exception\ConnectionException;
 use Dirthara\Database\Exception\TransactionException;
 use Dirthara\Database\Exception\ConnectionRegistryException;
@@ -55,6 +56,7 @@ final class ConnectionManager
 
     /**
      * @throws TransactionException
+     * @throws NamedLockException
      */
     public function disconnect(?string $name = null): void
     {
@@ -73,6 +75,7 @@ final class ConnectionManager
 
     /**
      * @throws TransactionException
+     * @throws NamedLockException
      */
     public function disconnectAll(): void
     {

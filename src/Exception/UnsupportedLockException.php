@@ -31,6 +31,13 @@ final class UnsupportedLockException extends RuntimeException implements Databas
         ]);
     }
 
+    public static function namedLocksUnsupported(string $database): self
+    {
+        return new self(message: sprintf('%s does not support named locks.', $database), context: [
+            'database' => $database,
+        ]);
+    }
+
     public static function lockedShape(string $construct, Lock $lock): self
     {
         return new self(

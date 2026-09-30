@@ -30,9 +30,10 @@ the builder will hand you its SQL and bindings whenever you ask.
 | [`Driver`](connections/drivers.md) | Turns a config into a `PDO` instance and names the transaction grammar its database understands. |
 | [`ConnectionFactory`](connections/connection-manager.md#the-factory) | Builds a `Connection` from a config using a registered driver, wrapping it in middleware. |
 | [`ConnectionManager`](connections/connection-manager.md) | Resolves and caches connections by name. |
-| [`Connection`](queries/executing-queries.md) | Runs queries and exposes the transaction manager. |
+| [`Connection`](queries/executing-queries.md) | Runs queries and exposes the transaction and lock managers. |
 | [`Result`](queries/results.md) | Reads the rows a query returned. |
 | [`TransactionManager`](transactions.md) | Commits, rolls back, and nests transactions with savepoints. |
+| [`LockManager`](named-locks.md) | Acquires and releases named locks on one connection's session. |
 | [`ConnectionMiddleware`](connections/middleware.md) | Wraps every connection the factory creates. |
 
 Everything is an interface with one shipped implementation per database, so a
@@ -47,10 +48,10 @@ the builder, and the grammar seams are the public API.
 | Public | |
 | --- | --- |
 | `Database`, `ConnectedDatabase` | The entry point. |
-| `Connection`, `ConnectionManager`, `ConnectionFactory`, `Driver`, `Result`, `TransactionManager` | Connection setup and use. |
+| `Connection`, `ConnectionManager`, `ConnectionFactory`, `Driver`, `Result`, `TransactionManager`, `LockManager`, `AcquiredLock` | Connection setup and use. |
 | `QueryBuilder` | Everything you call to build and run a query. |
 | `Dirthara\Database\Query\Expression\*` | `Identifier`, `RawExpression`, `Aliased`, `ExpressionFactory`. |
-| `Dirthara\Database\Query\Sql\*` | The enums a builder method accepts: `ComparisonOperator`, `JoinType`, `OrderDirection`, `AggregateFunction`. |
+| `Dirthara\Database\Query\Sql\*` | The enums a builder method accepts: `ComparisonOperator`, `JoinType`, `OrderDirection`, `AggregateFunction`, `LockMode`, `LockWait`. |
 | `Dirthara\Database\Query\Grammar\*` | The `QueryGrammar` interface, `SqlQueryGrammar`, the four drivers, the resolver. |
 | `CompiledQuery` | What `compile()` returns. |
 
@@ -89,3 +90,5 @@ PSR-3 logger. Credentials are never part of it. See
 - [Building queries](query-builder/building-queries.md) for the builder's clauses.
 - [Connection configuration](connections/configuration.md) for every option and
   what it means.
+- [Locking rows](query-builder/row-locks.md) and [named locks](named-locks.md) for
+  the two kinds of lock, and which one a problem needs.

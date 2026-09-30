@@ -10,9 +10,12 @@ use PDOStatement;
 use Dirthara\Database\Connection\Driver\Driver;
 use Dirthara\Database\Connection\Result\Result;
 use Dirthara\Database\Exception\QueryException;
+use Dirthara\Database\Connection\Lock\LockManager;
 use Dirthara\Database\Connection\Result\PdoResult;
 use Dirthara\Database\Connection\Driver\DriverName;
+use Dirthara\Database\Exception\NamedLockException;
 use Dirthara\Database\Exception\ConnectionException;
+use Dirthara\Database\Connection\Lock\PdoLockManager;
 use Dirthara\Database\Exception\TransactionException;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 use Dirthara\Database\Connection\Transaction\TransactionManager;
@@ -26,6 +29,8 @@ final class PdoConnection implements Connection
 {
     private ?PDO $pdo = null;
     private ?TransactionManager $transactions = null;
+
+    private ?LockManager $locks = null;
 
     public function __construct(
         private readonly ConnectionConfig $config,
@@ -47,6 +52,11 @@ final class PdoConnection implements Connection
             $this->driver->transactionGrammar(),
             $this->config,
         );
+    }
+
+    public function locks(): LockManager
+    {
+        return $this->locks ??= new PdoLockManager($this->pdo(...), $this->driver->namedLockGrammar(), $this->config);
     }
 
     /**
@@ -93,6 +103,7 @@ final class PdoConnection implements Connection
 
     /**
      * @throws TransactionException
+     * @throws NamedLockException
      */
     public function disconnect(): void
     {
@@ -100,7 +111,14 @@ final class PdoConnection implements Connection
             throw TransactionException::activeOnDisconnect($this->config);
         }
 
+        $held = $this->locks === null ? [] : $this->locks->held();
+
+        if ($held !== []) {
+            throw NamedLockException::heldOnDisconnect($this->config, $held);
+        }
+
         $this->transactions = null;
+        $this->locks = null;
         $this->pdo = null;
     }
 

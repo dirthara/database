@@ -10,6 +10,7 @@ use Dirthara\Database\Connection\Operation;
 use Dirthara\Database\Connection\Pdo\PdoError;
 use Dirthara\Database\Exception\ConnectionException;
 use Dirthara\Database\Connection\ValueObjects\Charset;
+use Dirthara\Database\Connection\Lock\NamedLockGrammar;
 use Dirthara\Database\Connection\ValueObjects\DsnValue;
 use Dirthara\Database\Connection\ValueObjects\DsnParameter;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
@@ -37,6 +38,11 @@ abstract class PdoDriver implements Driver
     public function transactionGrammar(): TransactionGrammar
     {
         return $this->grammar;
+    }
+
+    public function namedLockGrammar(): ?NamedLockGrammar
+    {
+        return null;
     }
 
     /**

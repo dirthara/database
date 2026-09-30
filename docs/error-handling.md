@@ -1,7 +1,7 @@
 ---
 id: error-handling
 title: Error handling
-sidebar_position: 9
+sidebar_position: 10
 description: The exceptions the package throws, the context each one carries, and how to log it.
 ---
 
@@ -49,8 +49,10 @@ All of them live in `Dirthara\Database\Exception`.
 | `InvalidQueryException` | `InvalidArgumentException` | The query cannot be described: an empty table, a null value where a comparison needs one, an insert whose rows disagree on columns, a binding that is not `scalar\|null`, a negative limit or offset, a chunk without an ordering, an offset on a mutation. |
 | `InvalidExpressionException` | `InvalidArgumentException` | An empty or malformed name, a name that looks like SQL, an empty alias, or an operator that is not a comparison. |
 | `UnsupportedQueryException` | `RuntimeException` | The query is describable but this database or grammar cannot express it: a limited or ordered update or delete on a driver without support, a joined mutation, `FULL JOIN` on MySQL, or a clause the grammar does not know. |
-| `UnsupportedLockException` | `RuntimeException` | A row lock the database cannot honour, such as any row lock on SQLite, or a lock on a query or operation it cannot apply to. See [locking rows](query-builder/row-locks.md#what-can-be-locked). |
+| `UnsupportedLockException` | `RuntimeException` | A row lock or named lock the database cannot honour, such as either kind on SQLite, or a lock on a query or operation it cannot apply to. See [locking rows](query-builder/row-locks.md#what-can-be-locked). |
 | `RowLockException` | `RuntimeException` | A locked select is run outside a transaction. |
+| `NamedLockException` | `RuntimeException` | A [named lock](named-locks.md) cannot be acquired or released, is acquired again by the connection that holds it, is released twice, or a connection holding one is disconnected. Not thrown for ordinary contention: `tryAcquireLock()` returns `null`. |
+| `InvalidLockNameException` | `InvalidArgumentException` | A named lock is requested with an empty name. |
 | `GrammarRegistryException` | `InvalidArgumentException` | A query grammar registered twice for a driver, or requested for a driver that has none. |
 
 Catch the specific type when the recovery differs — retrying is reasonable for a
@@ -146,6 +148,7 @@ throw $exception->addContext(['request_id' => $requestId]);
 | `charset` | The charset that was rejected. |
 | `lock_mode`, `lock_wait` | The requested row lock, as `LockMode` and `LockWait` values. |
 | `construct` | The part of a query a row lock cannot apply to. |
+| `lock`, `locks` | The named lock involved, or the named locks a connection still holds. |
 | `prefix`, `maximum` | The savepoint prefix that was rejected, and the longest one allowed. |
 
 :::danger
@@ -170,6 +173,7 @@ for grouping errors in a log without parsing messages.
 | `column` | Selecting a column from a result. |
 | `begin`, `commit`, `rollback` | Transaction control at the outermost level. |
 | `savepoint`, `release_savepoint`, `rollback_to_savepoint` | Transaction control at a nested level. |
+| `acquire_lock`, `release_lock` | Acquiring or releasing a named lock. |
 
 ## SQLSTATE
 

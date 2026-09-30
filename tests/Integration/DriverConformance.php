@@ -18,15 +18,20 @@ use Dirthara\Database\Exception\QueryException;
 use Dirthara\Database\Exception\RowLockException;
 use Dirthara\Database\Query\Grammar\QueryGrammar;
 use Dirthara\Database\Connection\Driver\DriverName;
+use Dirthara\Database\Connection\Lock\AcquiredLock;
+use Dirthara\Database\Exception\NamedLockException;
 use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 use Dirthara\Database\Connection\Transaction\TransactionGrammar;
 use Dirthara\Database\Connection\Transaction\StandardTransactionGrammar;
 
 use function getenv;
+use function usleep;
 use function sprintf;
 use function in_array;
 use function is_scalar;
+use function str_repeat;
+use function gc_collect_cycles;
 
 /**
  * The behaviour every driver owes its caller, run against a real database.
@@ -56,6 +61,11 @@ trait DriverConformance
     abstract protected function queryGrammar(): QueryGrammar;
 
     protected function supportsRowLocks(): bool
+    {
+        return true;
+    }
+
+    protected function supportsNamedLocks(): bool
     {
         return true;
     }
@@ -537,6 +547,198 @@ trait DriverConformance
             while ($connection->transactions()->inTransaction()) {
                 $connection->transactions()->rollback();
             }
+        }
+    }
+
+    #[Test]
+    public function a_named_lock_held_by_one_session_is_contended_for_another(): void
+    {
+        $this->requireNamedLocks();
+        $other = $this->otherSession();
+        $locks = [];
+
+        try {
+            $alpha = $this->connection()->locks()->acquire('dirthara:conformance:alpha');
+            $locks[] = $alpha;
+
+            self::assertNull($other->locks()->tryAcquire('dirthara:conformance:alpha'));
+
+            $beta = $other->locks()->tryAcquire('dirthara:conformance:beta');
+            $locks[] = $beta;
+            self::assertSame('dirthara:conformance:beta', $beta?->name);
+
+            $alpha->release();
+            self::assertTrue($alpha->released);
+
+            $taken = $other->locks()->tryAcquire('dirthara:conformance:alpha');
+            $locks[] = $taken;
+            self::assertSame('dirthara:conformance:alpha', $taken?->name);
+            self::assertSame(['dirthara:conformance:beta', 'dirthara:conformance:alpha'], $other->locks()->held());
+        } finally {
+            $this->releaseAll(...$locks);
+        }
+    }
+
+    #[Test]
+    public function a_named_lock_is_not_reentrant_on_one_connection(): void
+    {
+        $this->requireNamedLocks();
+        $other = $this->otherSession();
+        $locks = [];
+
+        try {
+            $alpha = $this->connection()->locks()->acquire('dirthara:conformance:alpha');
+            $locks[] = $alpha;
+
+            try {
+                $this->connection()->locks()->tryAcquire('dirthara:conformance:alpha');
+
+                self::fail('Expected a NamedLockException.');
+            } catch (NamedLockException $exception) {
+                self::assertSame('dirthara:conformance:alpha', $exception->context['lock']);
+            }
+
+            $alpha->release();
+
+            $taken = $other->locks()->tryAcquire('dirthara:conformance:alpha');
+            $locks[] = $taken;
+            self::assertNotNull($taken, 'The refused second attempt must not leave a native lock count behind.');
+        } finally {
+            $this->releaseAll(...$locks);
+        }
+    }
+
+    #[Test]
+    public function releasing_a_named_lock_twice_is_refused(): void
+    {
+        $this->requireNamedLocks();
+        $other = $this->otherSession();
+        $locks = [];
+
+        try {
+            $alpha = $this->connection()->locks()->acquire('dirthara:conformance:alpha');
+            $alpha->release();
+
+            try {
+                $alpha->release();
+
+                self::fail('Expected a NamedLockException.');
+            } catch (NamedLockException $exception) {
+                self::assertSame('release_lock', $exception->context['operation']);
+            }
+
+            $taken = $other->locks()->tryAcquire('dirthara:conformance:alpha');
+            $locks[] = $taken;
+            self::assertNotNull($taken);
+        } finally {
+            $this->releaseAll(...$locks);
+        }
+    }
+
+    #[Test]
+    public function a_named_lock_outlives_a_rollback_and_a_commit(): void
+    {
+        $this->requireNamedLocks();
+        $other = $this->otherSession();
+        $locks = [];
+
+        try {
+            $transactions = $this->connection()->transactions();
+
+            $transactions->begin();
+            $alpha = $this->connection()->locks()->acquire('dirthara:conformance:alpha');
+            $locks[] = $alpha;
+            $transactions->rollback();
+
+            self::assertNull($other->locks()->tryAcquire('dirthara:conformance:alpha'));
+
+            $transactions->begin();
+            $transactions->commit();
+
+            self::assertNull($other->locks()->tryAcquire('dirthara:conformance:alpha'));
+
+            $alpha->release();
+
+            $taken = $other->locks()->tryAcquire('dirthara:conformance:alpha');
+            $locks[] = $taken;
+            self::assertNotNull($taken);
+        } finally {
+            $this->abandon($this->connection());
+            $this->releaseAll(...$locks);
+        }
+    }
+
+    #[Test]
+    public function long_names_that_differ_only_at_the_end_are_different_locks(): void
+    {
+        $this->requireNamedLocks();
+        $other = $this->otherSession();
+        $locks = [];
+        $prefix = str_repeat('dirthara:conformance:', times: 20);
+
+        try {
+            $locks[] = $this
+                ->connection()
+                ->locks()
+                ->acquire($prefix . 'one');
+
+            $two = $other->locks()->tryAcquire($prefix . 'two');
+            $locks[] = $two;
+            self::assertSame($prefix . 'two', $two?->name);
+            self::assertNull($other->locks()->tryAcquire($prefix . 'one'));
+        } finally {
+            $this->releaseAll(...$locks);
+        }
+    }
+
+    #[Test]
+    public function a_named_lock_ends_with_the_session_that_held_it(): void
+    {
+        $this->requireNamedLocks();
+        $other = $this->otherSession();
+        $locks = [];
+
+        try {
+            $holder = $this->otherSession();
+            $lock = $holder->locks()->acquire('dirthara:conformance:alpha');
+
+            self::assertNull($other->locks()->tryAcquire('dirthara:conformance:alpha'));
+
+            unset($lock, $holder);
+            gc_collect_cycles();
+
+            $taken = null;
+
+            for ($i = 0; $i < 50 && $taken === null; $i++) {
+                $taken = $other->locks()->tryAcquire('dirthara:conformance:alpha');
+
+                if ($taken === null) {
+                    usleep(100_000);
+                }
+            }
+
+            $locks[] = $taken;
+            self::assertNotNull($taken, 'The server did not release the lock of a closed session.');
+        } finally {
+            $this->releaseAll(...$locks);
+        }
+    }
+
+    private function requireNamedLocks(): void
+    {
+        if (!$this->supportsNamedLocks()) {
+            self::markTestSkipped(sprintf('%s does not support named locks.', $this->driverName()->name));
+        }
+    }
+
+    private function releaseAll(?AcquiredLock ...$locks): void
+    {
+        foreach ($locks as $lock) {
+            if ($lock === null || $lock->released) {
+                continue;
+            }
+
+            $lock->release();
         }
     }
 }

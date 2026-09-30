@@ -78,7 +78,8 @@ $manager->disconnectAll();
 
 Disconnecting throws a `TransactionException` when a transaction is still
 active on that connection, rather than dropping the handle and losing the
-uncommitted work.
+uncommitted work, and a `NamedLockException` while the connection holds
+[named locks](../named-locks.md).
 
 ## Laziness
 

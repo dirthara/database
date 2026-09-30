@@ -81,6 +81,11 @@ final readonly class LoggingConnection implements Connection
         return $this->connection->transactions();
     }
 
+    public function locks(): LockManager
+    {
+        return $this->connection->locks();
+    }
+
     public function disconnect(): void
     {
         $this->connection->disconnect();

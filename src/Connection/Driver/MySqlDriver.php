@@ -6,6 +6,7 @@ namespace Dirthara\Database\Connection\Driver;
 
 use PDO;
 use Dirthara\Database\Exception\ConnectionException;
+use Dirthara\Database\Connection\Lock\MySqlNamedLockGrammar;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 
 use function sprintf;
@@ -20,6 +21,11 @@ final class MySqlDriver extends PdoDriver
     public function name(): DriverName
     {
         return DriverName::MySql;
+    }
+
+    public function namedLockGrammar(): MySqlNamedLockGrammar
+    {
+        return new MySqlNamedLockGrammar();
     }
 
     /**

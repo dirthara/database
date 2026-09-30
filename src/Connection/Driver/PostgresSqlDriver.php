@@ -7,6 +7,7 @@ namespace Dirthara\Database\Connection\Driver;
 use PDO;
 use Dirthara\Database\Exception\ConnectionException;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
+use Dirthara\Database\Connection\Lock\PostgresSqlNamedLockGrammar;
 
 use function sprintf;
 
@@ -17,6 +18,11 @@ final class PostgresSqlDriver extends PdoDriver
     public function name(): DriverName
     {
         return DriverName::PostgresSql;
+    }
+
+    public function namedLockGrammar(): PostgresSqlNamedLockGrammar
+    {
+        return new PostgresSqlNamedLockGrammar();
     }
 
     /**

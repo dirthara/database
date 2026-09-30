@@ -14,9 +14,12 @@ use Dirthara\Database\Connection\Driver\Driver;
 use Dirthara\Database\Connection\PdoConnection;
 use Dirthara\Database\Exception\QueryException;
 use Dirthara\Database\Connection\Driver\DriverName;
+use Dirthara\Database\Exception\NamedLockException;
 use Dirthara\Database\Exception\ConnectionException;
 use Dirthara\Database\Exception\TransactionException;
 use Dirthara\Database\Tests\Fixtures\OpensConnections;
+use Dirthara\Database\Connection\Lock\NamedLockGrammar;
+use Dirthara\Database\Tests\Fixtures\LockingSQLiteDriver;
 use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 use Dirthara\Database\Connection\Transaction\TransactionGrammar;
@@ -240,6 +243,51 @@ final class PdoConnectionTest extends TestCase
     }
 
     #[Test]
+    public function it_keeps_one_lock_manager_per_session(): void
+    {
+        $connection = $this->sqlite();
+
+        self::assertSame($connection->locks(), $connection->locks());
+    }
+
+    #[Test]
+    public function it_refuses_to_disconnect_while_it_holds_a_named_lock(): void
+    {
+        $connection = $this->locking();
+        $lock = $connection->locks()->acquire('alpha');
+        $connection->locks()->acquire('beta');
+
+        try {
+            $connection->disconnect();
+
+            self::fail('Expected a NamedLockException.');
+        } catch (NamedLockException $exception) {
+            self::assertSame(
+                'Unable to disconnect connection "locking" while it holds the named locks "alpha", "beta"; release them '
+                . 'first.',
+                $exception->getMessage(),
+            );
+            self::assertSame(['alpha', 'beta'], $exception->context['locks']);
+            self::assertSame('disconnect', $exception->context['operation']);
+        }
+
+        self::assertFalse($lock->released);
+        self::assertSame(['alpha', 'beta'], $connection->locks()->held());
+    }
+
+    #[Test]
+    public function it_disconnects_once_its_named_locks_are_released(): void
+    {
+        $connection = $this->locking();
+        $manager = $connection->locks();
+
+        $manager->acquire('alpha')->release();
+        $connection->disconnect();
+
+        self::assertNotSame($manager, $connection->locks());
+    }
+
+    #[Test]
     public function it_disconnects_when_no_transaction_is_open(): void
     {
         $connection = $this->withUsers();
@@ -316,6 +364,11 @@ final class PdoConnectionTest extends TestCase
                     return new StandardTransactionGrammar(new SavepointPrefix());
                 }
 
+                public function namedLockGrammar(): ?NamedLockGrammar
+                {
+                    return null;
+                }
+
                 public function connect(ConnectionConfig $config): PDO
                 {
                     return $this->pdo;
@@ -333,5 +386,13 @@ final class PdoConnectionTest extends TestCase
             self::assertSame(Operation::LastInsertId->value, $exception->context['operation']);
             self::assertSame('testing', $exception->context['connection']);
         }
+    }
+
+    private function locking(): PdoConnection
+    {
+        return new PdoConnection(
+            new ConnectionConfig(driver: DriverName::SQLite, name: 'locking', database: ':memory:'),
+            new LockingSQLiteDriver(),
+        );
     }
 }

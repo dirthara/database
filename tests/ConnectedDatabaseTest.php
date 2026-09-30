@@ -9,13 +9,18 @@ use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\ConnectedDatabase;
 use Dirthara\Database\Connection\Connection;
+use Dirthara\Database\Connection\PdoConnection;
 use Dirthara\Database\Exception\QueryException;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
+use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Exception\InvalidQueryException;
 use Dirthara\Database\Tests\Fixtures\OpensConnections;
+use Dirthara\Database\Exception\UnsupportedLockException;
+use Dirthara\Database\Tests\Fixtures\LockingSQLiteDriver;
 use Dirthara\Database\Tests\Fixtures\Query\RecordingGrammar;
+use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 
 final class ConnectedDatabaseTest extends TestCase
 {
@@ -208,5 +213,30 @@ final class ConnectedDatabaseTest extends TestCase
         }
 
         self::assertSame([], $database->execute('SELECT name FROM users')->all());
+    }
+
+    #[Test]
+    public function it_acquires_and_tries_named_locks_on_its_connection(): void
+    {
+        $connection = new PdoConnection(
+            new ConnectionConfig(driver: DriverName::SQLite, name: 'locking', database: ':memory:'),
+            new LockingSQLiteDriver(),
+        );
+        $database = $this->database($connection);
+
+        $lock = $database->acquireLock('alpha');
+
+        self::assertSame('alpha', $lock->name);
+        self::assertSame('beta', $database->tryAcquireLock('beta')?->name);
+        self::assertSame(['alpha', 'beta'], $connection->locks()->held());
+    }
+
+    #[Test]
+    public function it_reports_named_locks_the_driver_cannot_take(): void
+    {
+        $this->expectException(UnsupportedLockException::class);
+        $this->expectExceptionMessageIs('SQLite does not support named locks.');
+
+        $this->database()->tryAcquireLock('alpha');
     }
 }

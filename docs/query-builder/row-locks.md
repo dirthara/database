@@ -111,6 +111,10 @@ lock learns that it did not get one and can choose another strategy.
 
 ## What a lock does not do
 
+A row lock is not a [named lock](../named-locks.md) either: a row lock protects
+the rows a query selected, inside one transaction, while a named lock
+coordinates cooperating processes around something larger than a row.
+
 A row lock is not a replacement for a transaction that does the right thing, and
 not a replacement for idempotent work. A process can still crash after taking
 a row and before finishing with it: the lock ends with the transaction, and the

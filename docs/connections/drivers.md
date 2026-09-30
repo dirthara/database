@@ -151,6 +151,7 @@ The protected helpers available to a subclass:
 | `rejectCharset($config)` | Throws when a charset is configured. For databases that have no place to put one. |
 | `dsnParameters($config)` | The configured driver-specific parameters as a `;Name=Value` string, with both halves validated. Append it last. |
 | `rejectDsnParameters($config)` | Throws when any is configured. For a DSN with no `Key=Value` syntax. |
+| `namedLockGrammar()` | The `NamedLockGrammar` that maps [named locks](../named-locks.md) onto the database's own session-level locks, or null when the database has none. Returns null unless overridden, so a driver of your own refuses named locks until it says how to take them. |
 | `context($config, $operation, $cause)` | Exception context: config diagnostics, the operation, and the SQLSTATE and driver code of a `PDOException`. |
 
 Only `createConnection()` needs to run; `connect()` already catches

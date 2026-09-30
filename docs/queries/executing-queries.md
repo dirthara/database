@@ -139,7 +139,9 @@ $now = $connection->driver() === DriverName::SqlServer ? 'GETDATE()' : 'CURRENT_
 
 `disconnect()` drops the PDO handle. The connection is reusable afterwards — the
 next query opens a new one. It throws a `TransactionException` when a
-transaction is still active, rather than discarding uncommitted work.
+transaction is still active, rather than discarding uncommitted work, and a
+`NamedLockException` while the connection holds [named locks](../named-locks.md),
+rather than releasing them behind the backs of the objects that hold them.
 
 Prefer `ConnectionManager::disconnect()`, which also drops the connection from
 the manager's cache. Calling `disconnect()` on the connection directly leaves

@@ -16,9 +16,12 @@ use Dirthara\Database\Exception\ConnectionException;
 use Dirthara\Database\Connection\Driver\SQLiteDriver;
 use Dirthara\Database\Connection\Driver\SqlServerDriver;
 use Dirthara\Database\Connection\Driver\PostgresSqlDriver;
+use Dirthara\Database\Connection\Lock\MySqlNamedLockGrammar;
 use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
+use Dirthara\Database\Connection\Lock\SqlServerNamedLockGrammar;
 use Dirthara\Database\Exception\InvalidConnectionConfigException;
+use Dirthara\Database\Connection\Lock\PostgresSqlNamedLockGrammar;
 use Dirthara\Database\Connection\Transaction\StandardTransactionGrammar;
 use Dirthara\Database\Connection\Transaction\SqlServerTransactionGrammar;
 
@@ -174,6 +177,17 @@ final class DriverTest extends TestCase
             DriverName::SQLite,
             new SQLiteDriver(new StandardTransactionGrammar(new SavepointPrefix()))->name(),
         );
+    }
+
+    #[Test]
+    public function each_server_driver_brings_its_own_named_lock_grammar(): void
+    {
+        $grammar = new StandardTransactionGrammar(new SavepointPrefix());
+
+        self::assertInstanceOf(MySqlNamedLockGrammar::class, new MySqlDriver($grammar)->namedLockGrammar());
+        self::assertInstanceOf(PostgresSqlNamedLockGrammar::class, new PostgresSqlDriver($grammar)->namedLockGrammar());
+        self::assertInstanceOf(SqlServerNamedLockGrammar::class, new SqlServerDriver($grammar)->namedLockGrammar());
+        self::assertNull(new SQLiteDriver($grammar)->namedLockGrammar());
     }
 
     #[Test]

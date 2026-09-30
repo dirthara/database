@@ -7,12 +7,18 @@ namespace Dirthara\Database\Connection\Driver;
 use PDO;
 use Dirthara\Database\Exception\ConnectionException;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
+use Dirthara\Database\Connection\Lock\SqlServerNamedLockGrammar;
 
 final class SqlServerDriver extends PdoDriver
 {
     public function name(): DriverName
     {
         return DriverName::SqlServer;
+    }
+
+    public function namedLockGrammar(): SqlServerNamedLockGrammar
+    {
+        return new SqlServerNamedLockGrammar();
     }
 
     /**

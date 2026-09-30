@@ -21,7 +21,9 @@ use Dirthara\Database\Connection\Driver\SQLiteDriver;
 use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Exception\InvalidQueryException;
 use Dirthara\Database\Exception\GrammarRegistryException;
+use Dirthara\Database\Exception\UnsupportedLockException;
 use Dirthara\Database\Query\Grammar\QueryGrammarResolver;
+use Dirthara\Database\Tests\Fixtures\LockingSQLiteDriver;
 use Dirthara\Database\Exception\ConnectionRegistryException;
 use Dirthara\Database\Tests\Fixtures\Query\RecordingGrammar;
 use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
@@ -317,5 +319,28 @@ final class DatabaseTest extends TestCase
 
         self::assertSame(1, $affected);
         self::assertSame([['name' => 'Ada']], $database->execute('SELECT name FROM users')->all());
+    }
+
+    #[Test]
+    public function it_acquires_named_locks_on_the_chosen_connection(): void
+    {
+        $manager = new ConnectionManager(new ConnectionFactory([new LockingSQLiteDriver()]), [
+            $this->config('default'),
+            $this->config('workers'),
+        ]);
+        $database = $this->database($manager);
+
+        self::assertSame('alpha', $database->acquireLock('alpha', 'workers')->name);
+        self::assertSame('alpha', $database->tryAcquireLock('alpha')?->name);
+        self::assertSame(['alpha'], $manager->connection('workers')->locks()->held());
+        self::assertSame(['alpha'], $manager->connection()->locks()->held());
+    }
+
+    #[Test]
+    public function it_reports_named_locks_the_driver_cannot_take(): void
+    {
+        $this->expectException(UnsupportedLockException::class);
+
+        $this->database()->acquireLock('alpha');
     }
 }

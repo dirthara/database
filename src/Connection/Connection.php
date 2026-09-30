@@ -6,7 +6,9 @@ namespace Dirthara\Database\Connection;
 
 use Dirthara\Database\Connection\Result\Result;
 use Dirthara\Database\Exception\QueryException;
+use Dirthara\Database\Connection\Lock\LockManager;
 use Dirthara\Database\Connection\Driver\DriverName;
+use Dirthara\Database\Exception\NamedLockException;
 use Dirthara\Database\Exception\ConnectionException;
 use Dirthara\Database\Exception\TransactionException;
 use Dirthara\Database\Connection\Transaction\TransactionManager;
@@ -29,8 +31,11 @@ interface Connection
 
     public function transactions(): TransactionManager;
 
+    public function locks(): LockManager;
+
     /**
      * @throws TransactionException
+     * @throws NamedLockException
      */
     public function disconnect(): void;
 

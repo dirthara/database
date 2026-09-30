@@ -35,6 +35,8 @@ $rows = $database->table('users')->where('active', '=', 1)->get();
 | `table(string\|Expression $table, ?string $connection = null)` | `QueryBuilder` | A builder for that table on that connection. |
 | `execute(string $query, array $parameters = [], ?string $connection = null)` | `Result` | Raw SQL, bypassing the builder. |
 | `transaction(callable $callback, ?string $connection = null)` | `mixed` | Runs the callback in a transaction. |
+| `acquireLock(string $name, ?string $connection = null)` | `AcquiredLock` | Waits for and takes a [named lock](named-locks.md). |
+| `tryAcquireLock(string $name, ?string $connection = null)` | `?AcquiredLock` | Takes a named lock if it is free, or returns null. |
 
 Every method takes the connection name last and defaults to the manager's
 default, so a single-connection application never mentions it.
@@ -64,6 +66,8 @@ $legacy->table('orders')->get();
 | `table(string\|Expression $table)` | A `QueryBuilder` for that table. |
 | `execute(string $query, array $parameters = [])` | A `Result`. |
 | `transaction(callable $callback)` | The callback's return value. |
+| `acquireLock(string $name)` | An `AcquiredLock`, once the [named lock](named-locks.md) is free. |
+| `tryAcquireLock(string $name)` | An `AcquiredLock`, or null when another session holds the lock. |
 
 `connection()` is the escape hatch: use it for anything the scoped object does
 not cover, such as [`lastInsertId()`](queries/executing-queries.md#last-insert-id).

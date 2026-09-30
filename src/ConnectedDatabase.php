@@ -11,7 +11,11 @@ use Dirthara\Database\Connection\Result\Result;
 use Dirthara\Database\Exception\QueryException;
 use Dirthara\Database\Query\Grammar\QueryGrammar;
 use Dirthara\Database\Query\Expression\Expression;
+use Dirthara\Database\Connection\Lock\AcquiredLock;
+use Dirthara\Database\Exception\NamedLockException;
 use Dirthara\Database\Exception\ConnectionException;
+use Dirthara\Database\Exception\InvalidLockNameException;
+use Dirthara\Database\Exception\UnsupportedLockException;
 
 final readonly class ConnectedDatabase
 {
@@ -53,5 +57,27 @@ final readonly class ConnectedDatabase
     public function transaction(callable $callback): mixed
     {
         return $this->connection->transactions()->run(fn(): mixed => $callback($this));
+    }
+
+    /**
+     * @throws NamedLockException
+     * @throws ConnectionException
+     * @throws InvalidLockNameException
+     * @throws UnsupportedLockException
+     */
+    public function acquireLock(string $name): AcquiredLock
+    {
+        return $this->connection->locks()->acquire($name);
+    }
+
+    /**
+     * @throws NamedLockException
+     * @throws ConnectionException
+     * @throws InvalidLockNameException
+     * @throws UnsupportedLockException
+     */
+    public function tryAcquireLock(string $name): ?AcquiredLock
+    {
+        return $this->connection->locks()->tryAcquire($name);
     }
 }
