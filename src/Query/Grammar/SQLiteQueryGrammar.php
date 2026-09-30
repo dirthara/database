@@ -8,7 +8,7 @@ use Dirthara\Database\Query\Queries\SelectQuery;
 
 use function sprintf;
 
-class SQLiteQueryGrammar extends SqlQueryGrammar
+final class SQLiteQueryGrammar extends SqlQueryGrammar
 {
     /**
      * The row count SQLite reads as no limit, for an offset that has no limit of its own.

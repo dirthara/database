@@ -6,6 +6,7 @@ namespace Dirthara\Database\Tests\Query;
 
 use ArgumentCountError;
 use InvalidArgumentException;
+use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\QueryBuilder;
@@ -21,9 +22,12 @@ use Dirthara\Database\Query\Sql\BooleanOperator;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Sql\ComparisonOperator;
 use Dirthara\Database\Query\Expression\RawExpression;
+use Dirthara\Database\Tests\Fixtures\Query\BuildsQueries;
 
-final class QueryBuilderWhereTest extends QueryBuilderTestCase
+final class QueryBuilderWhereTest extends TestCase
 {
+    use BuildsQueries;
+
     #[Test]
     public function it_has_no_conditions_by_default(): void
     {
@@ -91,7 +95,7 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
     public function it_rejects_an_unknown_operator(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'The operator [equals] cannot compare two values; expected one of =, !=, >, >=, <, <=, LIKE, NOT LIKE.',
         );
 
@@ -102,7 +106,7 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
     public function it_rejects_an_operator_that_needs_its_own_clause(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'The operator [IN] cannot compare two values; expected one of =, !=, >, >=, <, <=, LIKE, NOT LIKE.',
         );
 
@@ -155,7 +159,7 @@ final class QueryBuilderWhereTest extends QueryBuilderTestCase
     public function it_rejects_null_for_any_other_operator(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Operator [GreaterThan (>)] cannot be used with NULL.');
+        $this->expectExceptionMessageIsOrContains('Operator [GreaterThan (>)] cannot be used with NULL.');
 
         $this->builder()->where('age', '>', null);
     }

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Dirthara\Database\Tests\Query\Grammar;
+namespace Dirthara\Database\Tests\Fixtures\Query;
 
 use PHPUnit\Framework\TestCase;
 use Dirthara\Database\Query\Clause\Union;
@@ -16,7 +16,13 @@ use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Sql\ComparisonOperator;
 use Dirthara\Database\Query\Expression\ExpressionFactory;
 
-abstract class GrammarTestCase extends TestCase
+use function array_map;
+use function array_values;
+
+/**
+ * @require-extends TestCase
+ */
+trait BuildsSelectQueries
 {
     /**
      * @param list<Expression> $columns

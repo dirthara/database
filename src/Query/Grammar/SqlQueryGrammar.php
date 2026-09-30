@@ -32,11 +32,13 @@ use function explode;
 use function implode;
 use function sprintf;
 use function array_map;
+use function is_scalar;
 use function array_keys;
 use function array_merge;
 use function str_replace;
 use function array_values;
 use function array_is_list;
+use function get_debug_type;
 
 abstract class SqlQueryGrammar implements QueryGrammar
 {

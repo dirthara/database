@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Tests\Integration;
 
+use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\Group;
 use Dirthara\Database\Connection\Driver\Driver;
@@ -14,8 +15,10 @@ use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 
 #[Group('conformance')]
 #[Group('integration')]
-final class MySqlConformanceTest extends DriverConformanceTestCase
+final class MySqlConformanceTest extends TestCase
 {
+    use DriverConformance;
+
     protected function driverName(): DriverName
     {
         return DriverName::MySql;

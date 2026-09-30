@@ -60,7 +60,7 @@ final class SavepointPrefixTest extends TestCase
     public function it_rejects_anything_else(string $value): void
     {
         $this->expectException(TransactionException::class);
-        $this->expectExceptionMessage('must start with a letter or underscore');
+        $this->expectExceptionMessageIsOrContains('must start with a letter or underscore');
 
         new SavepointPrefix($value);
     }
@@ -69,7 +69,7 @@ final class SavepointPrefixTest extends TestCase
     public function it_rejects_a_prefix_over_the_length_limit(): void
     {
         $this->expectException(TransactionException::class);
-        $this->expectExceptionMessage('must not exceed 24 characters');
+        $this->expectExceptionMessageIsOrContains('must not exceed 24 characters');
 
         new SavepointPrefix(str_repeat('a', times: 25));
     }

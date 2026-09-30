@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Dirthara\Database\Tests;
+namespace Dirthara\Database\Tests\Fixtures;
 
 use PHPUnit\Framework\TestCase;
 use Dirthara\Database\Connection\Connection;
@@ -13,7 +13,10 @@ use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 use Dirthara\Database\Connection\Transaction\StandardTransactionGrammar;
 
-abstract class ConnectionTestCase extends TestCase
+/**
+ * @require-extends TestCase
+ */
+trait OpensConnections
 {
     /**
      * @param array<int, mixed> $options

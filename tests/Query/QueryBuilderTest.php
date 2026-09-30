@@ -6,6 +6,7 @@ namespace Dirthara\Database\Tests\Query;
 
 use LogicException;
 use InvalidArgumentException;
+use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Sql\JoinType;
@@ -19,9 +20,14 @@ use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
 use Dirthara\Database\Query\Sql\ComparisonOperator;
 use Dirthara\Database\Query\Expression\RawExpression;
+use Dirthara\Database\Tests\Fixtures\Query\BuildsQueries;
 
-final class QueryBuilderTest extends QueryBuilderTestCase
+use function array_map;
+
+final class QueryBuilderTest extends TestCase
 {
+    use BuildsQueries;
+
     #[Test]
     public function it_queries_the_given_table(): void
     {
@@ -45,7 +51,7 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     public function it_rejects_an_empty_table(string $table): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('A query table cannot be empty.');
+        $this->expectExceptionMessageIsOrContains('A query table cannot be empty.');
 
         $this->builder($table);
     }
@@ -110,7 +116,7 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     public function it_rejects_an_empty_table_for_a_new_query(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('A query table cannot be empty.');
+        $this->expectExceptionMessageIsOrContains('A query table cannot be empty.');
 
         $this->builder()->newQuery('');
     }
@@ -240,7 +246,9 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     public function it_rejects_an_ordered_union_operand(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('A union operand cannot order or page itself; order and page the union instead.');
+        $this->expectExceptionMessageIsOrContains(
+            'A union operand cannot order or page itself; order and page the union instead.',
+        );
 
         $this->builder('users')->union($this->builder('archived')->orderBy('name'));
     }
@@ -484,7 +492,7 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     public function it_rejects_a_negative_limit(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Query limit cannot be negative.');
+        $this->expectExceptionMessageIsOrContains('Query limit cannot be negative.');
 
         $this->builder()->limit(-1);
     }
@@ -493,7 +501,7 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     public function it_rejects_a_negative_offset(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Query offset cannot be negative.');
+        $this->expectExceptionMessageIsOrContains('Query offset cannot be negative.');
 
         $this->builder()->offset(-1);
     }
@@ -639,7 +647,7 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     public function it_rejects_a_null_having_value(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('A having condition cannot compare to NULL.');
+        $this->expectExceptionMessageIsOrContains('A having condition cannot compare to NULL.');
 
         $this->builder()->having('total', '=', null);
     }
@@ -648,7 +656,7 @@ final class QueryBuilderTest extends QueryBuilderTestCase
     public function it_rejects_a_null_alternative_having_value(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('A having condition cannot compare to NULL.');
+        $this->expectExceptionMessageIsOrContains('A having condition cannot compare to NULL.');
 
         $this->builder()->orHaving('total', '=', null);
     }

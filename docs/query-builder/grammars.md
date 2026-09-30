@@ -227,9 +227,9 @@ server is worse than one that fails everywhere.
 ## Writing a grammar
 
 Extend `SqlQueryGrammar` and implement `quote()`. That is the whole requirement;
-everything else has a working default. The four shipped grammars are extensible
-too, so a database that is a dialect of one of them — MariaDB, say — can start
-from `MySqlQueryGrammar` rather than from the base.
+everything else has a working default. The four shipped grammars are final, so
+a database that is a dialect of one of them — MariaDB, say — starts from the
+base and overrides the same seams the shipped grammar does.
 
 ```php
 use Dirthara\Database\Query\Grammar\SqlQueryGrammar;

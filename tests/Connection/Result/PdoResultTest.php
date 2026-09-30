@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace Dirthara\Database\Tests\Connection\Result;
 
 use PDOStatement;
+use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Connection\Connection;
-use Dirthara\Database\Tests\ConnectionTestCase;
 use Dirthara\Database\Connection\Result\PdoResult;
+use Dirthara\Database\Tests\Fixtures\OpensConnections;
 use Dirthara\Database\Connection\Exceptions\ResultException;
 
-final class PdoResultTest extends ConnectionTestCase
+final class PdoResultTest extends TestCase
 {
+    use OpensConnections;
+
     private function seeded(): Connection
     {
         $connection = $this->withUsers();
@@ -79,7 +82,7 @@ final class PdoResultTest extends ConnectionTestCase
     public function it_rejects_an_unknown_column_name_on_an_empty_result(): void
     {
         $this->expectException(ResultException::class);
-        $this->expectExceptionMessage('The result set has no column "missing".');
+        $this->expectExceptionMessageIsOrContains('The result set has no column "missing".');
 
         $this->withUsers()->execute('SELECT name FROM users')->column('missing');
     }
@@ -88,7 +91,7 @@ final class PdoResultTest extends ConnectionTestCase
     public function it_rejects_a_column_position_out_of_range(): void
     {
         $this->expectException(ResultException::class);
-        $this->expectExceptionMessage('The result set has no column #4.');
+        $this->expectExceptionMessageIsOrContains('The result set has no column #4.');
 
         $this->seeded()->execute('SELECT name FROM users')->column(4);
     }

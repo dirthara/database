@@ -20,7 +20,7 @@ use Dirthara\Database\Connection\Driver\SQLiteDriver;
 use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Query\Grammar\QueryGrammarResolver;
 use Dirthara\Database\Connection\Exceptions\QueryException;
-use Dirthara\Database\Tests\Query\Doubles\RecordingGrammar;
+use Dirthara\Database\Tests\Fixtures\Query\RecordingGrammar;
 use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 use Dirthara\Database\Connection\Exceptions\ConnectionException;
@@ -86,7 +86,7 @@ final class DatabaseTest extends TestCase
     public function it_reports_an_unconfigured_connection(): void
     {
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('The requested database connection is not configured.');
+        $this->expectExceptionMessageIsOrContains('The requested database connection is not configured.');
 
         $this->database()->connection('missing');
     }
@@ -141,7 +141,7 @@ final class DatabaseTest extends TestCase
         $database = $this->database(grammars: new QueryGrammarResolver());
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('No query grammar has been registered for driver [sqlite].');
+        $this->expectExceptionMessageIsOrContains('No query grammar has been registered for driver [sqlite].');
 
         $database->using();
     }
@@ -186,7 +186,7 @@ final class DatabaseTest extends TestCase
     public function it_rejects_an_empty_table(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('A query table cannot be empty.');
+        $this->expectExceptionMessageIsOrContains('A query table cannot be empty.');
 
         $this->database()->table('');
     }

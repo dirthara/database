@@ -5,7 +5,7 @@
 There is no `main`. Every supported version has its own long-lived branch, named
 for its major and minor version:
 
-```
+```text
 0.1   ← the first release line
 0.2   ← the next minor, branched from 0.1
 1.0   ← the next major, branched from 0.2
@@ -66,9 +66,9 @@ work into a released line, which is how a patch release ends up containing a
 feature.
 
 Expect conflicts in `composer.json` and `.github/workflows/ci.yml` when the
-branches support different PHP versions. Resolve them in favour of the branch
-you are merging into — the newer branch keeps its own constraint and its own
-matrix.
+branches support different PHP versions, or dependency constraints differ.
+Resolve them in favour of the branch you are merging into — the newer branch
+keeps its own constraints and its own matrix.
 
 ### PHP versions are per branch
 
@@ -95,7 +95,7 @@ git push origin 0.1.3
 
 A release is gated on a perfect [Plumb](https://plumbphp.dev) score. Every
 package scores 100 before it is tagged; the packaging rules that get it there
-are in [agents/packaging.md](agents/packaging.md).
+are in [CS-8](https://github.com/dirthara/coding-standards/blob/main/docs/coding-standards/cs-8-packaging.md).
 
 ```sh
 curl -X POST https://plumbphp.dev/api/v1/packages/dirthara/database
@@ -125,6 +125,7 @@ Then update the supported versions table below and in
 | Branch | PHP | Status |
 | --- | --- | --- |
 | `0.1` | 8.5 | Active |
+| `0.2` | 8.5 | Active development; unreleased |
 
 Every driver is exercised against a real server by the conformance suite.
 
@@ -136,8 +137,9 @@ Run everything CI runs:
 docker compose exec php composer ci
 ```
 
-That is Mago's formatter, linter, analyzer, and architecture rules, then the
-test suite with coverage, then the coverage gate. It needs the database services,
+That is Mago's formatter, the import order, the linter, the analyzer, and the
+architecture rules, then the import sorter's own tests, the test suite with
+coverage, and the coverage gate. It needs the database services,
 which `docker compose up -d php` starts and waits for. CI runs the tests in this
 same image against these same services, so a green run locally means a green run
 there. The individual
@@ -150,13 +152,13 @@ Your pull request needs:
 - **Full coverage of `src`.** The gate fails the build below 100% line coverage
   and prints the uncovered lines. Cover new code with the pull request that adds
   it. Behaviour that needs a real database belongs in the conformance suite in
-  `tests/Integration`: add it to `DriverConformanceTestCase` when every driver
-  owes it, and to a subclass when it is that database's own dialect. Those
-  classes carry the `conformance` group, and the ones needing a service also
-  carry `integration`.
+  `tests/Integration`: add it to the `DriverConformance` trait when every driver
+  owes it, and to a driver's own test class when it is that database's dialect.
+  Those classes carry the `conformance` group, and the ones needing a service
+  also carry `integration`.
 - **Documentation that matches.** Behaviour that the [docs](docs) describe is
   updated in the same pull request. See the conventions in
-  [agents/documentation.md](agents/documentation.md).
+  [CS-6](https://github.com/dirthara/coding-standards/blob/main/docs/coding-standards/cs-6-documentation.md).
 
 ## Maintainers: protecting a release branch
 

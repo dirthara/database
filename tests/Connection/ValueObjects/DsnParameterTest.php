@@ -37,7 +37,7 @@ final class DsnParameterTest extends TestCase
     public function it_rejects_a_name_that_is_not_an_identifier(string $name): void
     {
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('must be an identifier');
+        $this->expectExceptionMessageIsOrContains('must be an identifier');
 
         new DsnParameter($name, 'yes');
     }
@@ -46,7 +46,7 @@ final class DsnParameterTest extends TestCase
     public function it_rejects_a_value_that_would_add_another_parameter(): void
     {
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('must not contain a semicolon');
+        $this->expectExceptionMessageIsOrContains('must not contain a semicolon');
 
         new DsnParameter('Encrypt', 'no;Database=other');
     }

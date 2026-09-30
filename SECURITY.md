@@ -2,13 +2,14 @@
 
 ## Supported versions
 
-The package is pre-1.0. Only the latest release line receives fixes; there are
-no backports to earlier ones.
-
-| Version | Supported |
+| Version | Status |
 | --- | --- |
-| 0.1.x | Yes |
-| Older | No |
+| 0.2.x | Active development; unreleased |
+| 0.1.x | Active |
+| Older | Unsupported |
+
+While the package is pre-1.0, only the latest release line receives fixes; there
+are no backports to earlier ones.
 
 ## Reporting a vulnerability
 

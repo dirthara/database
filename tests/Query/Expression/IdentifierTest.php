@@ -71,7 +71,7 @@ final class IdentifierTest extends TestCase
     public function it_rejects_anything_that_is_not_a_name(string $name, string $message): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIsOrContains($message);
 
         new Identifier($name);
     }
@@ -98,7 +98,7 @@ final class IdentifierTest extends TestCase
     public function an_alias_cannot_be_empty(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('An alias cannot be empty.');
+        $this->expectExceptionMessageIsOrContains('An alias cannot be empty.');
 
         new Aliased(new Identifier('users'), '  ');
     }

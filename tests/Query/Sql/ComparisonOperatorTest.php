@@ -10,6 +10,9 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Database\Query\Sql\ComparisonOperator;
 
+use function sprintf;
+use function array_map;
+
 final class ComparisonOperatorTest extends TestCase
 {
     /**
@@ -105,7 +108,7 @@ final class ComparisonOperatorTest extends TestCase
     public function it_rejects_a_test_that_is_not_a_comparison(string $operator): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(sprintf(
+        $this->expectExceptionMessageIsOrContains(sprintf(
             'The operator [%s] cannot compare two values; expected one of =, !=, >, >=, <, <=, LIKE, NOT LIKE.',
             $operator,
         ));
@@ -117,7 +120,7 @@ final class ComparisonOperatorTest extends TestCase
     public function it_rejects_an_operator_it_does_not_know(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'The operator [~=] cannot compare two values; expected one of =, !=, >, >=, <, <=, LIKE, NOT LIKE.',
         );
 

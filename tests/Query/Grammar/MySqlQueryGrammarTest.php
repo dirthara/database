@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Dirthara\Database\Tests\Query\Grammar;
 
 use LogicException;
+use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Union;
 use Dirthara\Database\Query\Clause\Where;
@@ -29,10 +30,15 @@ use Dirthara\Database\Query\Sql\AggregateFunction;
 use Dirthara\Database\Query\Sql\ComparisonOperator;
 use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Query\Grammar\MySqlQueryGrammar;
-use Dirthara\Database\Tests\Query\Grammar\Doubles\UnsupportedExpression;
+use Dirthara\Database\Tests\Fixtures\Query\BuildsSelectQueries;
+use Dirthara\Database\Tests\Fixtures\Query\UnsupportedExpression;
 
-final class MySqlQueryGrammarTest extends GrammarTestCase
+use function sprintf;
+
+final class MySqlQueryGrammarTest extends TestCase
 {
+    use BuildsSelectQueries;
+
     private MySqlQueryGrammar $grammar;
 
     protected function setUp(): void
@@ -503,7 +509,10 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     public function it_rejects_an_expression_it_does_not_know(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(sprintf('Unsupported expression [%s].', UnsupportedExpression::class));
+        $this->expectExceptionMessageIsOrContains(sprintf(
+            'Unsupported expression [%s].',
+            UnsupportedExpression::class,
+        ));
 
         $this->grammar->compileSelect($this->select(columns: [new UnsupportedExpression()]));
     }
@@ -825,7 +834,7 @@ final class MySqlQueryGrammarTest extends GrammarTestCase
     public function it_rejects_a_full_join(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('MySQL does not support a full join.');
+        $this->expectExceptionMessageIsOrContains('MySQL does not support a full join.');
 
         $this->grammar->compileSelect($this->select(joins: [
             new JoinClause(

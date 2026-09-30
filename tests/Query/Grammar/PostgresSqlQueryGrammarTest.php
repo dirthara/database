@@ -7,6 +7,7 @@ namespace Dirthara\Database\Tests\Query\Grammar;
 use stdClass;
 use LogicException;
 use InvalidArgumentException;
+use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Sql\JoinType;
@@ -27,10 +28,15 @@ use Dirthara\Database\Query\Sql\AggregateFunction;
 use Dirthara\Database\Query\Sql\ComparisonOperator;
 use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Query\Grammar\PostgresSqlQueryGrammar;
-use Dirthara\Database\Tests\Query\Grammar\Doubles\UnsupportedWhere;
+use Dirthara\Database\Tests\Fixtures\Query\UnsupportedWhere;
+use Dirthara\Database\Tests\Fixtures\Query\BuildsSelectQueries;
 
-final class PostgresSqlQueryGrammarTest extends GrammarTestCase
+use function sprintf;
+
+final class PostgresSqlQueryGrammarTest extends TestCase
 {
+    use BuildsSelectQueries;
+
     private PostgresSqlQueryGrammar $grammar;
 
     protected function setUp(): void
@@ -475,7 +481,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_rejects_an_ordered_update(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('An ordered update query is not supported by this driver.');
+        $this->expectExceptionMessageIsOrContains('An ordered update query is not supported by this driver.');
 
         $this->grammar->compileUpdate(new UpdateQuery(
             table: new Identifier('users'),
@@ -490,7 +496,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_rejects_an_ordered_delete(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('An ordered delete query is not supported by this driver.');
+        $this->expectExceptionMessageIsOrContains('An ordered delete query is not supported by this driver.');
 
         $this->grammar->compileDelete(new DeleteQuery(
             table: new Identifier('users'),
@@ -533,7 +539,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_rejects_a_limited_update(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('A limited update query is not supported by this driver.');
+        $this->expectExceptionMessageIsOrContains('A limited update query is not supported by this driver.');
 
         $this->grammar->compileUpdate(new UpdateQuery(
             table: new Identifier('users'),
@@ -548,7 +554,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_rejects_a_limited_delete(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('A limited delete query is not supported by this driver.');
+        $this->expectExceptionMessageIsOrContains('A limited delete query is not supported by this driver.');
 
         $this->grammar->compileDelete(new DeleteQuery(
             table: new Identifier('users'),
@@ -562,7 +568,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_rejects_an_unsupported_where_clause(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(sprintf('Unsupported where clause [%s].', UnsupportedWhere::class));
+        $this->expectExceptionMessageIsOrContains(sprintf('Unsupported where clause [%s].', UnsupportedWhere::class));
 
         $this->grammar->compileSelect($this->select(wheres: [new UnsupportedWhere()]));
     }
@@ -571,7 +577,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_rejects_an_unsupported_where_clause_after_the_first(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(sprintf('Unsupported where clause [%s].', UnsupportedWhere::class));
+        $this->expectExceptionMessageIsOrContains(sprintf('Unsupported where clause [%s].', UnsupportedWhere::class));
 
         $this->grammar->compileSelect($this->select(wheres: [
             new Where(new Identifier('active'), ComparisonOperator::Equal, 1, BooleanOperator::And),
@@ -583,7 +589,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_rejects_an_insert_without_rows(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('An insert needs at least one row.');
+        $this->expectExceptionMessageIsOrContains('An insert needs at least one row.');
 
         $this->grammar->compileInsert(new InsertQuery(new Identifier('users'), []));
     }
@@ -592,7 +598,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_rejects_an_insert_without_columns(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('An insert needs at least one column.');
+        $this->expectExceptionMessageIsOrContains('An insert needs at least one column.');
 
         $this->grammar->compileInsert(new InsertQuery(new Identifier('users'), [[]]));
     }
@@ -601,7 +607,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_rejects_rows_with_different_columns(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Every inserted row needs the same columns in the same order.');
+        $this->expectExceptionMessageIsOrContains('Every inserted row needs the same columns in the same order.');
 
         $this->grammar->compileInsert(new InsertQuery(new Identifier('users'), [['name' => 'Ada'], ['active' => 1]]));
     }
@@ -610,7 +616,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_rejects_rows_with_reordered_columns(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Every inserted row needs the same columns in the same order.');
+        $this->expectExceptionMessageIsOrContains('Every inserted row needs the same columns in the same order.');
 
         $this->grammar->compileInsert(new InsertQuery(new Identifier('users'), [
             ['name' => 'Ada', 'active' => 1],
@@ -622,7 +628,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_rejects_an_update_without_values(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('An update needs at least one value.');
+        $this->expectExceptionMessageIsOrContains('An update needs at least one value.');
 
         $this->grammar->compileUpdate(new UpdateQuery(
             table: new Identifier('users'),
@@ -637,7 +643,7 @@ final class PostgresSqlQueryGrammarTest extends GrammarTestCase
     public function it_rejects_a_binding_that_is_not_scalar(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('A query binding must be scalar or null, got [stdClass].');
+        $this->expectExceptionMessageIsOrContains('A query binding must be scalar or null, got [stdClass].');
 
         $this->grammar->compileSelect($this->select(wheres: [
             new Where(new Identifier('meta'), ComparisonOperator::Equal, new stdClass(), BooleanOperator::And),

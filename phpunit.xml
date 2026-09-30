@@ -5,6 +5,7 @@
          cacheDirectory=".phpunit.cache"
          beStrictAboutOutputDuringTests="true"
          failOnRisky="true"
+         failOnEmptyTestSuite="true"
          failOnWarning="true"
          displayDetailsOnTestsThatTriggerWarnings="true"
          displayDetailsOnTestsThatTriggerErrors="true">
@@ -17,9 +18,5 @@
         <include>
             <directory>src</directory>
         </include>
-        <exclude>
-            <directory>src/Query/Clause</directory>
-            <directory>src/Query/Queries</directory>
-        </exclude>
     </source>
 </phpunit>

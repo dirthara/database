@@ -13,7 +13,7 @@ use Dirthara\Database\Query\Queries\SelectQuery;
 use function implode;
 use function sprintf;
 
-class MySqlQueryGrammar extends SqlQueryGrammar
+final class MySqlQueryGrammar extends SqlQueryGrammar
 {
     /**
      * The largest row count MySQL accepts for an offset that has no limit of its own.

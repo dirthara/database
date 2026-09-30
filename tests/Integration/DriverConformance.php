@@ -29,8 +29,10 @@ use function is_scalar;
  * savepoint grammar cannot be judged without a server that accepts or rejects it.
  * Each subclass supplies a connection and the dialect of its schema; the tests here
  * are the same for all of them.
+ *
+ * @require-extends TestCase
  */
-abstract class DriverConformanceTestCase extends TestCase
+trait DriverConformance
 {
     private ?Connection $connection = null;
 

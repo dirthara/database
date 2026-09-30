@@ -7,12 +7,13 @@ namespace Dirthara\Database\Tests\Connection;
 use PDO;
 use PDOException;
 use RuntimeException;
+use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Connection\Operation;
 use Dirthara\Database\Connection\Driver\Driver;
 use Dirthara\Database\Connection\PdoConnection;
-use Dirthara\Database\Tests\ConnectionTestCase;
 use Dirthara\Database\Connection\Driver\DriverName;
+use Dirthara\Database\Tests\Fixtures\OpensConnections;
 use Dirthara\Database\Connection\Exceptions\QueryException;
 use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
@@ -21,8 +22,14 @@ use Dirthara\Database\Connection\Transaction\TransactionGrammar;
 use Dirthara\Database\Connection\Exceptions\TransactionException;
 use Dirthara\Database\Connection\Transaction\StandardTransactionGrammar;
 
-final class PdoConnectionTest extends ConnectionTestCase
+use function json_encode;
+
+use const JSON_THROW_ON_ERROR;
+
+final class PdoConnectionTest extends TestCase
 {
+    use OpensConnections;
+
     #[Test]
     public function it_binds_a_positional_parameter_list_counted_from_zero(): void
     {

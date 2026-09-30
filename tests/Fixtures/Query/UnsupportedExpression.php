@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Dirthara\Database\Tests\Query\Grammar\Doubles;
+namespace Dirthara\Database\Tests\Fixtures\Query;
 
 use Dirthara\Database\Query\Expression\Expression;
 

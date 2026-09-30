@@ -9,6 +9,8 @@ use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 
+use function print_r;
+
 final class ConnectionConfigTest extends TestCase
 {
     private function config(): ConnectionConfig

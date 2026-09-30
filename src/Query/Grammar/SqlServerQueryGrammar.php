@@ -11,7 +11,7 @@ use Dirthara\Database\Query\Queries\CompiledQuery;
 
 use function sprintf;
 
-class SqlServerQueryGrammar extends SqlQueryGrammar
+final class SqlServerQueryGrammar extends SqlQueryGrammar
 {
     protected function quote(string $identifier): string
     {

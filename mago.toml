@@ -4,15 +4,100 @@ php-version = "8.5"
 paths = ["src", "tests"]
 includes = ["vendor"]
 
+# CS-1: 4 spaces and a soft line length of 120 characters.
 [formatter]
-sort-uses = "length-ascending"
+print-width = 120
+tab-width = 4
+use-tabs = false
+sort-uses = "preserve"
 separate-use-types = true
 expand-use-groups = true
 
+# CS-1 §1: every file declares strict types.
 [linter.rules.strict-types]
 enabled = true
 level = "error"
 allow-disabling = false
+
+# CS-1 §5: root-level functions, classes, and constants are imported with a use statement, never used unqualified or
+# written fully qualified.
+[linter.rules.ambiguous-function-call]
+enabled = true
+level = "error"
+
+[linter.rules.ambiguous-constant-access]
+enabled = true
+level = "error"
+
+[linter.rules.no-fully-qualified-global-constant]
+enabled = true
+level = "error"
+
+[linter.rules.no-fully-qualified-global-function]
+enabled = true
+level = "error"
+
+[linter.rules.no-fully-qualified-global-class-like]
+enabled = true
+level = "error"
+
+# CS-1 §1 and CS-2 §1: StudlyCaps class-likes and enum cases without Interface, Trait, or Abstract affixes, SNAKE_CASE
+# constants, and camelCase methods, properties, and variables.
+[linter.rules.class-name]
+enabled = true
+level = "error"
+psr = false
+
+[linter.rules.interface-name]
+enabled = true
+level = "error"
+psr = false
+
+[linter.rules.trait-name]
+enabled = true
+level = "error"
+psr = false
+
+[linter.rules.enum-name]
+enabled = true
+level = "error"
+
+[linter.rules.constant-name]
+enabled = true
+level = "error"
+
+[linter.rules.function-name]
+enabled = true
+level = "error"
+camel = true
+either = false
+
+[linter.rules.method-name]
+enabled = true
+level = "error"
+camel = true
+either = false
+# Test methods are snake_case under a #[Test] attribute, which this rule does not recognise: it only treats methods named
+# test* as tests. Their names are left to review.
+exclude = ["tests/"]
+
+[linter.rules.property-name]
+enabled = true
+level = "error"
+camel = true
+either = false
+
+[linter.rules.variable-name]
+enabled = true
+level = "error"
+camel = true
+either = false
+check-parameters = true
+
+# CS-3 §2: tests are marked with the #[Test] attribute rather than a test prefix.
+[linter.rules.prefer-test-attribute]
+enabled = true
+level = "error"
 
 [linter.rules.too-many-methods]
 enabled = false
@@ -28,3 +113,48 @@ enabled = false
 
 [linter.rules.too-many-properties]
 enabled = false
+
+# The package depends on nothing beyond PHP; add a dependency here when the package requires one. Tests may use
+# anything.
+[[guard.perimeter.rules]]
+namespace = "Dirthara\\Database\\"
+permit = ["@native", "Dirthara\\Database\\**"]
+
+[[guard.perimeter.rules]]
+namespace = "Dirthara\\Database\\Connection\\"
+permit = ["@native", "Dirthara\\Database\\Connection\\**", "Dirthara\\Database\\Exceptions\\**"]
+
+[[guard.perimeter.rules]]
+namespace = "Dirthara\\Database\\Tests\\"
+permit = ["@all"]
+
+# CS-1 §15: classes are final.
+[[guard.structural.rules]]
+on = "Dirthara\\Database\\**"
+not-on = "Dirthara\\Database\\{Connection\\Driver\\PdoDriver,Connection\\Transaction\\PrefixedTransactionGrammar,Query\\Grammar\\SqlQueryGrammar,Exceptions\\**,Connection\\Exceptions\\**}"
+target = "class"
+must-be-final = true
+reason = "Classes are final (CS-1 §15)."
+
+[[guard.structural.rules]]
+on = "Dirthara\\Database\\Contract\\**"
+must-be = ["interface"]
+reason = "The Contract namespace holds only interfaces."
+
+# CS-7: every exception implements the package interface and carries its context through the shared trait.
+[[guard.structural.rules]]
+on = "Dirthara\\Database\\Exception\\**"
+target = "class"
+must-be-named = "*Exception"
+must-implement = "Dirthara\\Database\\Exception\\DatabaseException"
+must-use-trait = "Dirthara\\Database\\Exception\\HasExceptionContext"
+reason = "Package exceptions implement DatabaseException and use HasExceptionContext (CS-7)."
+
+# CS-3: test classes are suffixed with Test.
+[[guard.structural.rules]]
+on = "Dirthara\\Database\\Tests\\**"
+not-on = "Dirthara\\Database\\Tests\\Fixtures\\**"
+target = "class"
+must-be-named = "*Test"
+must-extend = "PHPUnit\\Framework\\TestCase"
+reason = "Test classes are PHPUnit test cases suffixed with Test (CS-3)."

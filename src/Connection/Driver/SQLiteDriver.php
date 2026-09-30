@@ -8,7 +8,7 @@ use PDO;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 use Dirthara\Database\Connection\Exceptions\ConnectionException;
 
-class SQLiteDriver extends PdoDriver
+final class SQLiteDriver extends PdoDriver
 {
     public function name(): DriverName
     {

@@ -8,7 +8,7 @@ use PDO;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 use Dirthara\Database\Connection\Exceptions\ConnectionException;
 
-class SqlServerDriver extends PdoDriver
+final class SqlServerDriver extends PdoDriver
 {
     public function name(): DriverName
     {

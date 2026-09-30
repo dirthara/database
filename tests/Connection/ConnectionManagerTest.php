@@ -73,7 +73,7 @@ final class ConnectionManagerTest extends TestCase
     public function it_rejects_a_duplicated_connection_name(): void
     {
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('configured more than once');
+        $this->expectExceptionMessageIsOrContains('configured more than once');
 
         new ConnectionManager($this->factory(), [$this->config('primary'), $this->config('primary')]);
     }

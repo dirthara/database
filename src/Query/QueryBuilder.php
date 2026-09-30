@@ -38,6 +38,20 @@ use Dirthara\Database\Query\Expression\ExpressionFactory;
 use Dirthara\Database\Connection\Exceptions\QueryException;
 use Dirthara\Database\Connection\Exceptions\ConnectionException;
 
+use function trim;
+use function count;
+use function reset;
+use function sprintf;
+use function ucfirst;
+use function is_array;
+use function array_map;
+use function is_scalar;
+use function is_string;
+use function array_push;
+use function array_values;
+use function array_is_list;
+use function iterator_to_array;
+
 final class QueryBuilder
 {
     /**

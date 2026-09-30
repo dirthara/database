@@ -4,95 +4,61 @@
 
 # Dirthara Database
 
-Database connections for the Dirthara framework. A thin layer over PDO that
-gives you named connections, a query builder that compiles for MySQL,
-PostgreSQL, SQLite, and SQL Server, parameter binding, forward-only result sets,
-and nested transactions backed by savepoints.
+Database connections for the Dirthara framework. A thin layer over PDO that gives you named connections, a query
+builder that compiles for MySQL, PostgreSQL, SQLite, and SQL Server, parameter binding, forward-only result sets, and
+nested transactions backed by savepoints. Usage documentation lives in [`docs`](docs/intro.md) and is published on the
+Dirthara documentation site at <https://dirthara.github.io/docs/>, which documents every package in the framework.
 
 ## Installation
+
+Requires PHP `^8.5` (PHP 8.5 or a later PHP 8 release) and the `pdo` extension. Each database also needs its own PDO
+extension: `pdo_mysql`, `pdo_pgsql`, `pdo_sqlite`, or `pdo_sqlsrv`. Install with:
 
 ```sh
 composer require dirthara/database
 ```
 
-The package requires PHP 8.5 and the `pdo` extension. Each driver also needs its
-own PDO extension: `pdo_mysql`, `pdo_pgsql`, `pdo_sqlite`, or `pdo_sqlsrv`.
-
-Usage documentation lives in [`docs`](docs), which is published as a Docusaurus
-site by a separate package.
-
 ## Docker development environment
 
-Requires Docker with Docker Compose. The development image provides PHP 8.5 CLI,
-Composer 2.10.3, Mago, Xdebug, and a PDO driver for every database the package
-supports: `pdo_sqlite`, `pdo_mysql`, `pdo_pgsql`, and `pdo_sqlsrv`. Extensions
-are installed with
-[install-php-extensions](https://github.com/mlocati/docker-php-extension-installer),
-pinned in the Dockerfile alongside every other tool version.
-
-Build the image and start the PHP container in the background:
+Requires Docker with Docker Compose. The development image provides PHP 8.5 CLI, Composer 2.10.3, Mago 1.47.3, Xdebug,
+and a PDO driver for every database the package supports: `pdo_sqlite`, `pdo_mysql`, `pdo_pgsql`, and `pdo_sqlsrv`.
 
 ```sh
+git clone git@github.com:dirthara/database.git
+cd database
 LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) docker compose up -d --build php
-```
-
-This is the command CI runs too, so the suite runs against the same PHP build in
-both places. The image is PHP 8.5 by default; set `PHP_VERSION` to build another
-version, which is how CI walks its matrix.
-
-The container runs as the non-root `developer` user with your host user and group
-IDs, so files created in the mounted repository remain editable on the host.
-Both IDs default to 1000. Rebuild with the command above when they change.
-
-The container stays running so you can open a shell at any time:
-
-```sh
-docker compose exec php bash
-```
-
-Run PHP or Composer commands against the mounted repository:
-
-```sh
-docker compose exec php php --version
-docker compose exec php php --ri PDO
-docker compose exec php composer --version
-```
-
-Install dependencies with:
-
-```sh
 docker compose exec php composer install
 ```
 
-Stop and remove the development container when finished:
+The container runs as the non-root `developer` user. The build arguments `LOCAL_UID` and `LOCAL_GID` default to 1000;
+the command above uses your host IDs so generated files remain editable. Set `PHP_VERSION` to override the default
+8.5 image, which is how CI walks its matrix. Rebuild when the Dockerfile or build arguments change.
+
+`docker compose up -d php` also starts PostgreSQL, MySQL, and SQL Server and waits until each reports healthy, because
+the tests run against every driver the package supports. The first start pulls roughly a gigabyte of images, and SQL
+Server takes around thirty seconds to accept connections. The SQL Server image is published for amd64 only, so its tests
+skip on an arm64 host.
+
+Open a shell or stop the environment with:
 
 ```sh
+docker compose exec php bash
 docker compose down
 ```
 
-`docker compose up -d php` also starts PostgreSQL, MySQL, and SQL Server and
-waits until each reports healthy, because the integration tests need them. The
-first start pulls roughly a gigabyte of images and SQL Server takes around thirty
-seconds to accept connections. The SQL Server image is published for amd64 only,
-so its tests skip on an arm64 host.
-
 ## Tests
-
-Run the suite through Composer in the PHP container:
 
 ```sh
 docker compose exec php composer test
 ```
 
-Most of the suite runs against SQLite in memory. Tests that cover the MySQL and
-SQL Server drivers assert on configuration handling and DSN validation, which
-happen before PDO is asked to connect.
+Tests belong in `tests`, under `Dirthara\Database\Tests`. Source belongs in `src`, under `Dirthara\Database`. Helpers
+shared between tests, such as test doubles and the traits that open connections, live in `tests/Fixtures`.
 
-`tests/Integration` holds one conformance suite that every driver runs against a
-real server: connecting, binding, reading results, and committing, rolling back,
-and nesting transactions. Assembling a DSN is not evidence of assembling the
-right one, and savepoint grammar cannot be judged without a server that accepts
-or rejects it.
+Most of the suite runs against SQLite in memory. Behaviour that needs a real database belongs in `tests/Integration`,
+where one conformance suite, the `DriverConformance` trait, runs against every driver: connecting, binding, reading
+results, and committing, rolling back, and nesting transactions. Assembling a DSN is not evidence of assembling the
+right one, and savepoint grammar cannot be judged without a server that accepts or rejects it.
 
 | Suite | Service | Notes |
 | --- | --- | --- |
@@ -101,108 +67,64 @@ or rejects it.
 | `MySqlConformanceTest` | `mysql` | Also covers the charset the DSN carries. |
 | `SqlServerConformanceTest` | `sqlserver` | The only run that exercises `SqlServerTransactionGrammar`. |
 
-The SQL Server suite passes `TrustServerCertificate=yes` through the config's
-`dsn` parameters, because ODBC Driver 18 encrypts and verifies by default and the
-development container presents a self-signed certificate. Production connections
-should trust a real certificate chain instead.
+The PostgreSQL, MySQL, and SQL Server suites skip when their PDO driver is missing, and read their connection from
+`DIRTHARA_POSTGRES_*`, `DIRTHARA_MYSQL_*`, and `DIRTHARA_SQLSRV_*` (`_HOST`, `_PORT`, `_DATABASE`, `_USERNAME`,
+`_PASSWORD`), defaulting to the services in `compose.yaml`.
 
-Each suite skips when its PDO driver is missing, and reads its connection from
-`DIRTHARA_POSTGRES_*`, `DIRTHARA_MYSQL_*`, and `DIRTHARA_SQLSRV_*`
-(`_HOST`, `_PORT`, `_DATABASE`, `_USERNAME`, `_PASSWORD`), defaulting to the
-services in `compose.yaml`.
+The SQL Server suite passes `TrustServerCertificate=yes` through the config's `dsn` parameters, because ODBC Driver 18
+encrypts and verifies by default and the development container presents a self-signed certificate. Production
+connections should trust a real certificate chain instead.
 
-### Coverage
+## Code quality
 
-Xdebug is installed but inactive, so the suite runs at full speed.
-`composer test-coverage` turns it on for that one command and writes
-`build/coverage/clover.xml`:
+Run the same checks as CI:
+
+```sh
+docker compose exec php composer ci
+```
+
+Run individual checks:
+
+```sh
+docker compose exec php composer fmt-check
+docker compose exec php composer lint
+docker compose exec php composer analyze
+docker compose exec php composer guard
+```
+
+`composer mago` runs the formatting, import-order, lint, analysis, and architecture checks. Every check runs even when an
+earlier one fails. `composer ci` also runs the import sorter's own tests, the test suite, and the coverage gate.
+
+Apply formatting and import sorting with `composer fmt`, or include automatic lint fixes with `composer cs`:
+
+```sh
+docker compose exec php composer fmt
+docker compose exec php composer cs
+```
+
+`composer cs` includes potentially unsafe lint fixes; review its changes.
+
+Run coverage separately with:
 
 ```sh
 docker compose exec php composer test-coverage
 docker compose exec php composer coverage
 ```
 
-`composer coverage` fails when line coverage of `src` is below 100% and lists
-every uncovered line. It needs the PostgreSQL service running, since that driver
-applies a charset only after connecting and no other test reaches those lines.
-Run everything CI runs, in CI's order, with:
-
-```sh
-docker compose exec php composer ci
-```
-
-## Mago
-
-Run all Mago checks through Composer in the PHP container:
-
-```sh
-docker compose exec php composer mago
-```
-
-Inside the container shell, use `composer mago` directly. Rebuild the PHP image
-after pulling changes to its Dockerfile. This command checks formatting, runs the
-linter and static analyzer, and checks architecture rules with `mago guard`.
-Every check runs even if an earlier check fails, and the command fails if any
-check fails. It does not modify files. Architecture rules apply when configured
-in `mago.toml`.
-
-`composer lint` reports lint violations without touching files. `composer
-lint-fix` applies the fixes it can, including the potentially unsafe ones.
-
-Mago 1.47.3 runs through its official Docker image. Only Docker Compose is needed
-on the host, and the PHP container does not need to be running. The image is
-downloaded automatically on first use.
-
-Check formatting, lint, and analyze the source:
-
-```sh
-docker compose run --rm mago fmt --check
-docker compose run --rm mago lint
-docker compose run --rm mago analyze
-```
-
-Apply formatting with:
-
-```sh
-docker compose run --rm mago fmt
-```
-
-Add missing strict type declarations, then format all source and test files:
-
-```sh
-docker compose run --rm mago lint --only strict-types --fix --potentially-unsafe
-docker compose run --rm mago fmt
-```
-
-The strict types rule reports violations as errors. Its fix needs
-`--potentially-unsafe` because strict typing changes PHP's coercion behavior.
-Imports are sorted shortest first within separate class, function, and constant
-lists, with blank lines between the lists.
-
-Mago runs with user and group IDs 1000 by default so edited files remain owned by
-your host account. If your IDs differ, export them before running these commands:
-
-```sh
-export LOCAL_UID=$(id -u) LOCAL_GID=$(id -g)
-```
-
-The `mago.toml` configuration targets PHP 8.5 and the `src` and `tests` directories, with `vendor`
-available for dependency analysis. The `tools` profile keeps Mago out of the
-normal background services; explicitly running the service activates it.
+Xdebug is inactive by default and enabled for the coverage run. The report is written to `build/coverage/clover.xml`.
+The gate requires 100% line coverage of `src` and lists uncovered lines. It needs the PostgreSQL service running, since
+that driver applies a charset only after connecting and no other test reaches those lines.
 
 ## Contributing
 
-Every supported version has its own branch, fixes land on the earliest supported
-branch that has the bug, and pull requests need the `CI` check to pass with full
-coverage of `src`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the branching and
-release strategy.
+Each supported version has its own branch; there is no `main`. See [CONTRIBUTING.md](CONTRIBUTING.md) for branching,
+release, and pull request requirements, and [AGENTS.md](AGENTS.md) for agent instructions.
 
 ## Security
 
-Report vulnerabilities privately through GitHub's advisory form rather than in a
-public issue. See [SECURITY.md](SECURITY.md) for the supported versions, what is
-in scope, and what to include in a report.
+Report vulnerabilities through GitHub's private advisory form rather than in a public issue. See
+[SECURITY.md](SECURITY.md) for the supported versions, what is in scope, and what to include in a report.
 
 ## License
 
-Released under the MIT License. See [LICENSE](LICENSE).
+Copyright (c) 2026 Dirthara. Released under the [MIT License](LICENSE).

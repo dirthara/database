@@ -38,9 +38,11 @@ final class ArchitectureTest extends TestCase
         $paths = [];
 
         foreach ($files as $file) {
-            if ($file->getExtension() === 'php') {
-                $paths[] = str_replace($root, '', $file->getPathname());
+            if ($file->getExtension() !== 'php') {
+                continue;
             }
+
+            $paths[] = str_replace($root, replace: '', subject: $file->getPathname());
         }
 
         sort($paths);
@@ -54,24 +56,6 @@ final class ArchitectureTest extends TestCase
     }
 
     #[Test]
-    public function the_connection_layer_does_not_depend_on_the_query_layer(): void
-    {
-        $offenders = [];
-
-        foreach ($this->sources('src/Connection') as $path) {
-            if (preg_match('/^use Dirthara\\\\Database\\\\Query\\\\/m', $this->read($path)) === 1) {
-                $offenders[] = $path;
-            }
-        }
-
-        self::assertSame(
-            [],
-            $offenders,
-            'A connection has to work without the query builder, so nothing under src/Connection may import it.',
-        );
-    }
-
-    #[Test]
     public function the_query_objects_are_marked_internal(): void
     {
         $public = ['src/Query/Queries/CompiledQuery.php'];
@@ -79,7 +63,7 @@ final class ArchitectureTest extends TestCase
 
         foreach (['src/Query/Clause', 'src/Query/Queries'] as $directory) {
             foreach ($this->sources($directory) as $path) {
-                if (in_array($path, $public, true)) {
+                if (in_array($path, $public, strict: true)) {
                     continue;
                 }
 

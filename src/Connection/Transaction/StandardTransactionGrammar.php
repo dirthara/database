@@ -6,7 +6,7 @@ namespace Dirthara\Database\Connection\Transaction;
 
 use function sprintf;
 
-class StandardTransactionGrammar extends PrefixedTransactionGrammar
+final class StandardTransactionGrammar extends PrefixedTransactionGrammar
 {
     public function createSavepoint(string $name): string
     {

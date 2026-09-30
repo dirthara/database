@@ -2,12 +2,13 @@
     "name": "dirthara/database",
     "description": "Database connection for the Dirthara framework",
     "type": "library",
+    "homepage": "https://dirthara.github.io/docs/",
     "require": {
         "php": "^8.5",
         "ext-pdo": "*"
     },
     "require-dev": {
-        "phpunit/phpunit": "^12.0 || ^13.0"
+        "phpunit/phpunit": "^13.0"
     },
     "suggest": {
         "ext-pdo_mysql": "To connect with the MySQL driver",
@@ -31,29 +32,44 @@
             "name": "Dirthara"
         }
     ],
+    "support": {
+        "docs": "https://dirthara.github.io/docs/",
+        "issues": "https://github.com/dirthara/database/issues",
+        "source": "https://github.com/dirthara/database"
+    },
     "prefer-stable": true,
     "config": {
         "sort-packages": true
     },
     "scripts": {
         "mago": "sh scripts/mago.sh",
-        "fmt": "mago fmt",
-        "fmt-check": "mago fmt --check",
+        "fmt": [
+            "mago fmt",
+            "@imports"
+        ],
+        "fmt-check": [
+            "mago fmt --check",
+            "@imports-check"
+        ],
         "lint": "mago lint",
         "lint-fix": "mago lint --fix --potentially-unsafe",
         "analyze": "mago analyze",
         "guard": "mago guard",
-        "test": "phpunit",
-        "test-coverage": "XDEBUG_MODE=coverage phpunit --coverage-clover=build/coverage/clover.xml",
-        "coverage": "php scripts/coverage.php build/coverage/clover.xml 100",
+        "test": "sh scripts/when-source-exists.sh phpunit",
+        "test-coverage": "XDEBUG_MODE=coverage sh scripts/when-source-exists.sh phpunit --coverage-clover=build/coverage/clover.xml",
+        "coverage": "sh scripts/when-source-exists.sh php scripts/coverage.php build/coverage/clover.xml 100",
         "cs": [
-            "@fmt",
-            "@lint-fix"
+            "@lint-fix",
+            "@fmt"
         ],
         "ci": [
             "@mago",
+            "@test-tools",
             "@test-coverage",
             "@coverage"
-        ]
+        ],
+        "imports": "@php scripts/sort-imports.php",
+        "imports-check": "@php scripts/sort-imports.php --check",
+        "test-tools": "@php scripts/tests/sort-imports.php"
     }
 }

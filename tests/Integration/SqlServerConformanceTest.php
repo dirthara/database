@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Tests\Integration;
 
+use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Group;
 use Dirthara\Database\Connection\Driver\Driver;
 use Dirthara\Database\Connection\Driver\DriverName;
@@ -19,8 +20,10 @@ use Dirthara\Database\Connection\Transaction\SqlServerTransactionGrammar;
  */
 #[Group('conformance')]
 #[Group('integration')]
-final class SqlServerConformanceTest extends DriverConformanceTestCase
+final class SqlServerConformanceTest extends TestCase
 {
+    use DriverConformance;
+
     protected function grammar(): TransactionGrammar
     {
         return new SqlServerTransactionGrammar(new SavepointPrefix());

@@ -6,14 +6,21 @@ namespace Dirthara\Database\Tests\Query;
 
 use LogicException;
 use InvalidArgumentException;
+use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
 use Dirthara\Database\Query\Sql\AggregateFunction;
+use Dirthara\Database\Tests\Fixtures\Query\BuildsQueries;
 
-final class QueryBuilderExecutionTest extends QueryBuilderTestCase
+use function array_column;
+use function iterator_to_array;
+
+final class QueryBuilderExecutionTest extends TestCase
 {
+    use BuildsQueries;
+
     #[Test]
     public function it_returns_every_row(): void
     {
@@ -175,7 +182,7 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
     public function it_rejects_a_chunk_smaller_than_one_row(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('A chunk size must be at least one row.');
+        $this->expectExceptionMessageIsOrContains('A chunk size must be at least one row.');
 
         $this
             ->executing('SELECT name FROM users')
@@ -187,7 +194,9 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
     public function it_rejects_a_chunk_without_an_ordering(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('A chunked query needs an ordering, or its pages can skip and repeat rows.');
+        $this->expectExceptionMessageIsOrContains(
+            'A chunked query needs an ordering, or its pages can skip and repeat rows.',
+        );
 
         $this->executing('SELECT name FROM users')->chunk(2, static fn(): null => null);
     }
@@ -196,7 +205,7 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
     public function it_rejects_a_chunk_that_pages_itself(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('A chunked query cannot limit or page itself; chunk() pages it.');
+        $this->expectExceptionMessageIsOrContains('A chunked query cannot limit or page itself; chunk() pages it.');
 
         $this
             ->executing('SELECT name FROM users')
@@ -381,7 +390,9 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
     public function it_rejects_an_aggregate_over_a_grouped_query(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('A grouped query has one SUM per group; add it to the selection instead.');
+        $this->expectExceptionMessageIsOrContains(
+            'A grouped query has one SUM per group; add it to the selection instead.',
+        );
 
         $this->executing('SELECT SUM(active) AS aggregate FROM users')->groupBy('name')->sum('active');
     }
@@ -435,7 +446,7 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
     public function it_rejects_a_bulk_insert_that_is_not_a_list_of_rows(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Bulk inserts must contain arrays of column values.');
+        $this->expectExceptionMessageIsOrContains('Bulk inserts must contain arrays of column values.');
 
         // @mago-expect analysis:possibly-invalid-argument
         $this->executing('INSERT INTO users (name) VALUES (?)')->insert([['name' => 'Alan'], 'Edsger']);
@@ -482,7 +493,7 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
     public function it_rejects_a_key_from_more_than_one_row(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('An insert that returns a key must have exactly one row.');
+        $this->expectExceptionMessageIsOrContains('An insert that returns a key must have exactly one row.');
 
         // @mago-expect analysis:invalid-argument
         $this->executing('INSERT INTO users (name) VALUES (?)')->insertGetId([['name' => 'Ada'], ['name' => 'Grace']]);
@@ -537,7 +548,7 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
     public function it_rejects_an_update_that_skips_rows(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Update queries cannot skip rows with an offset.');
+        $this->expectExceptionMessageIsOrContains('Update queries cannot skip rows with an offset.');
 
         $this->executing('UPDATE users SET active = ?')->offset(5)->update(['active' => 0]);
     }
@@ -546,7 +557,7 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
     public function it_rejects_an_update_over_a_join(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Joined update queries are not supported yet.');
+        $this->expectExceptionMessageIsOrContains('Joined update queries are not supported yet.');
 
         $this
             ->executing('UPDATE users SET active = ?')
@@ -585,7 +596,7 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
     public function it_rejects_a_delete_that_skips_rows(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Delete queries cannot skip rows with an offset.');
+        $this->expectExceptionMessageIsOrContains('Delete queries cannot skip rows with an offset.');
 
         $this->executing('DELETE FROM users')->offset(5)->delete();
     }
@@ -594,7 +605,7 @@ final class QueryBuilderExecutionTest extends QueryBuilderTestCase
     public function it_rejects_a_delete_over_a_join(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Joined delete queries are not supported yet.');
+        $this->expectExceptionMessageIsOrContains('Joined delete queries are not supported yet.');
 
         $this->executing('DELETE FROM users')->join('posts', 'users.id', '=', 'posts.user_id')->delete();
     }

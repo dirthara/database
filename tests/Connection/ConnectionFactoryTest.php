@@ -90,7 +90,7 @@ final class ConnectionFactoryTest extends TestCase
     public function it_rejects_a_duplicated_driver(): void
     {
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('registered more than once');
+        $this->expectExceptionMessageIsOrContains('registered more than once');
 
         new ConnectionFactory([
             $this->driver(),

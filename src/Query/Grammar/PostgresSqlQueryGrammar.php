@@ -10,7 +10,7 @@ use Dirthara\Database\Query\Queries\CompiledQuery;
 
 use function sprintf;
 
-class PostgresSqlQueryGrammar extends SqlQueryGrammar
+final class PostgresSqlQueryGrammar extends SqlQueryGrammar
 {
     protected function quote(string $identifier): string
     {

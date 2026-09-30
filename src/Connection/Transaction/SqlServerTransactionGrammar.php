@@ -6,7 +6,7 @@ namespace Dirthara\Database\Connection\Transaction;
 
 use function sprintf;
 
-class SqlServerTransactionGrammar extends PrefixedTransactionGrammar
+final class SqlServerTransactionGrammar extends PrefixedTransactionGrammar
 {
     public function createSavepoint(string $name): string
     {

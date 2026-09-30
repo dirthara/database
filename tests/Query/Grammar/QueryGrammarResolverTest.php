@@ -100,7 +100,7 @@ final class QueryGrammarResolverTest extends TestCase
         $resolver = new QueryGrammarResolver([DriverName::SQLite->value => new SQLiteQueryGrammar()]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('A query grammar is already registered for driver [sqlite].');
+        $this->expectExceptionMessageIsOrContains('A query grammar is already registered for driver [sqlite].');
 
         $resolver->register(DriverName::SQLite, new SQLiteQueryGrammar());
     }
@@ -112,7 +112,7 @@ final class QueryGrammarResolverTest extends TestCase
         $resolver->register('sqlite', new SQLiteQueryGrammar());
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('A query grammar is already registered for driver [sqlite].');
+        $this->expectExceptionMessageIsOrContains('A query grammar is already registered for driver [sqlite].');
 
         $resolver->register(DriverName::SQLite, new SQLiteQueryGrammar());
     }
@@ -131,7 +131,7 @@ final class QueryGrammarResolverTest extends TestCase
     public function it_rejects_a_driver_the_constructor_is_given_twice(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('A query grammar is already registered for driver [sqlite].');
+        $this->expectExceptionMessageIsOrContains('A query grammar is already registered for driver [sqlite].');
 
         new QueryGrammarResolver(self::duplicated());
     }
@@ -150,7 +150,7 @@ final class QueryGrammarResolverTest extends TestCase
         $resolver = new QueryGrammarResolver([DriverName::SQLite->value => new SQLiteQueryGrammar()]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('No query grammar has been registered for driver [mysql].');
+        $this->expectExceptionMessageIsOrContains('No query grammar has been registered for driver [mysql].');
 
         $resolver->resolve(DriverName::MySql);
     }
@@ -161,7 +161,7 @@ final class QueryGrammarResolverTest extends TestCase
         $resolver = new QueryGrammarResolver([DriverName::SQLite->value => new SQLiteQueryGrammar()]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('No query grammar has been registered for driver [mysql].');
+        $this->expectExceptionMessageIsOrContains('No query grammar has been registered for driver [mysql].');
 
         $resolver->resolve('mysql');
     }

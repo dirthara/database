@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Tests\Integration;
 
+use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Group;
 use Dirthara\Database\Connection\Driver\Driver;
 use Dirthara\Database\Connection\Driver\DriverName;
@@ -14,8 +15,10 @@ use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
  * SQLite needs no service, so this is the one conformance run that always happens.
  */
 #[Group('conformance')]
-final class SQLiteConformanceTest extends DriverConformanceTestCase
+final class SQLiteConformanceTest extends TestCase
 {
+    use DriverConformance;
+
     protected function driverName(): DriverName
     {
         return DriverName::SQLite;

@@ -10,7 +10,7 @@ use Dirthara\Database\Connection\Exceptions\ConnectionException;
 
 use function sprintf;
 
-class PostgresSqlDriver extends PdoDriver
+final class PostgresSqlDriver extends PdoDriver
 {
     private const int DEFAULT_PORT = 5432;
 

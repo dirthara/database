@@ -61,7 +61,7 @@ final class DriverTest extends TestCase
     public function it_rejects_a_host_that_would_inject_dsn_parameters(Driver $driver, DriverName $name): void
     {
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('must not contain a semicolon');
+        $this->expectExceptionMessageIsOrContains('must not contain a semicolon');
 
         $driver->connect(new ConnectionConfig(driver: $name, host: 'localhost;dbname=other'));
     }
@@ -71,7 +71,7 @@ final class DriverTest extends TestCase
     public function it_rejects_a_database_that_would_inject_dsn_parameters(Driver $driver, DriverName $name): void
     {
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('must not contain a semicolon');
+        $this->expectExceptionMessageIsOrContains('must not contain a semicolon');
 
         $driver->connect(new ConnectionConfig(driver: $name, host: 'localhost', database: 'app;Trusted=yes'));
     }
@@ -80,7 +80,7 @@ final class DriverTest extends TestCase
     public function it_rejects_a_charset_that_is_not_an_identifier(): void
     {
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('not a valid identifier');
+        $this->expectExceptionMessageIsOrContains('not a valid identifier');
 
         new MySqlDriver(new StandardTransactionGrammar(new SavepointPrefix()))->connect(new ConnectionConfig(
             driver: DriverName::MySql,
@@ -109,7 +109,7 @@ final class DriverTest extends TestCase
     public function sqlite_rejects_a_charset_it_cannot_honour(): void
     {
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('SQLite does not support a configurable charset.');
+        $this->expectExceptionMessageIsOrContains('SQLite does not support a configurable charset.');
 
         new SQLiteDriver(new StandardTransactionGrammar(new SavepointPrefix()))->connect(new ConnectionConfig(
             driver: DriverName::SQLite,
@@ -122,7 +122,7 @@ final class DriverTest extends TestCase
     public function sql_server_rejects_a_charset_it_cannot_honour(): void
     {
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('SqlServer does not support a configurable charset.');
+        $this->expectExceptionMessageIsOrContains('SqlServer does not support a configurable charset.');
 
         new SqlServerDriver(new SqlServerTransactionGrammar(new SavepointPrefix()))->connect(new ConnectionConfig(
             driver: DriverName::SqlServer,
@@ -240,7 +240,7 @@ final class DriverTest extends TestCase
     public function it_rejects_a_dsn_parameter_that_would_inject_another(Driver $driver, DriverName $name): void
     {
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('must not contain a semicolon');
+        $this->expectExceptionMessageIsOrContains('must not contain a semicolon');
 
         $driver->connect(new ConnectionConfig(driver: $name, host: 'db.invalid', dsn: [
             'Encrypt' => 'no;Database=other',
@@ -251,7 +251,7 @@ final class DriverTest extends TestCase
     public function sqlite_rejects_dsn_parameters_it_has_nowhere_to_put(): void
     {
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('SQLite does not support driver-specific DSN parameters.');
+        $this->expectExceptionMessageIsOrContains('SQLite does not support driver-specific DSN parameters.');
 
         new SQLiteDriver(new StandardTransactionGrammar(new SavepointPrefix()))->connect(new ConnectionConfig(
             driver: DriverName::SQLite,

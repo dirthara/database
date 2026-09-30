@@ -51,7 +51,7 @@ final class CharsetTest extends TestCase
     public function it_rejects_anything_else(string $value): void
     {
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('The configured charset is not a valid identifier.');
+        $this->expectExceptionMessageIsOrContains('The configured charset is not a valid identifier.');
 
         new Charset($value);
     }

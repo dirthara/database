@@ -77,7 +77,7 @@ final class ExpressionFactoryTest extends TestCase
     public function it_rejects_more_than_one_alias(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The expression [a as b as c] has more than one alias.');
+        $this->expectExceptionMessageIsOrContains('The expression [a as b as c] has more than one alias.');
 
         ExpressionFactory::from('a as b as c');
     }
@@ -86,7 +86,7 @@ final class ExpressionFactoryTest extends TestCase
     public function it_never_reads_a_string_as_raw_sql(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'The identifier [COUNT(*)] looks like SQL rather than a name; use a raw expression instead.',
         );
 

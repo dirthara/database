@@ -2,22 +2,27 @@
 
 declare(strict_types=1);
 
-namespace Dirthara\Database\Tests\Query;
+namespace Dirthara\Database\Tests\Fixtures\Query;
 
+use PHPUnit\Framework\TestCase;
 use Dirthara\Database\Query\QueryBuilder;
 use Dirthara\Database\Connection\Connection;
 use Dirthara\Database\Query\Clause\WhereClause;
-use Dirthara\Database\Tests\ConnectionTestCase;
 use Dirthara\Database\Query\Expression\Expression;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
+use Dirthara\Database\Tests\Fixtures\OpensConnections;
 use Dirthara\Database\Query\Grammar\SQLiteQueryGrammar;
-use Dirthara\Database\Tests\Query\Doubles\RecordingGrammar;
 
 use function sprintf;
 
-abstract class QueryBuilderTestCase extends ConnectionTestCase
+/**
+ * @require-extends TestCase
+ */
+trait BuildsQueries
 {
+    use OpensConnections;
+
     protected RecordingGrammar $grammar;
 
     protected function setUp(): void

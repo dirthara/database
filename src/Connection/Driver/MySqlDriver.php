@@ -11,7 +11,7 @@ use Dirthara\Database\Connection\Exceptions\ConnectionException;
 use function sprintf;
 use function array_replace;
 
-class MySqlDriver extends PdoDriver
+final class MySqlDriver extends PdoDriver
 {
     private const int DEFAULT_PORT = 3306;
 

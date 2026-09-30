@@ -50,7 +50,7 @@ final class DsnValueTest extends TestCase
     public function it_names_the_field_it_rejected(): void
     {
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('The configured database must not contain a semicolon.');
+        $this->expectExceptionMessageIsOrContains('The configured database must not contain a semicolon.');
 
         new DsnValue('database', 'app;Trusted_Connection=yes');
     }
