@@ -105,6 +105,14 @@ it:
 - **Not affected by transactions.** A named lock acquired inside a transaction
   that rolls back is still held afterwards.
 
+Named locks refuse a persistent PDO session. With `PDO::ATTR_PERSISTENT`
+switched on, PHP keeps the session open and hands it to the next connection
+that asks for the same server, so a lock would survive the connection that took
+it and quietly pass to whatever code gets the session next. Acquiring or trying
+for a named lock on a persistent session throws an `UnsupportedLockException`
+before any lock statement runs. `pdo_sqlsrv` does not offer persistent
+connections at all, so this only arises on MySQL and PostgreSQL.
+
 A connection that holds named locks refuses to `disconnect()`, throwing a
 `NamedLockException` that lists them, for the same reason it refuses while a
 transaction is active: disconnecting would silently release locks that live

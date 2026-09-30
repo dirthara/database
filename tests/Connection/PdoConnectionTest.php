@@ -19,6 +19,7 @@ use Dirthara\Database\Exception\ConnectionException;
 use Dirthara\Database\Exception\TransactionException;
 use Dirthara\Database\Tests\Fixtures\OpensConnections;
 use Dirthara\Database\Connection\Lock\NamedLockGrammar;
+use Dirthara\Database\Exception\UnsupportedLockException;
 use Dirthara\Database\Tests\Fixtures\LockingSQLiteDriver;
 use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
@@ -273,6 +274,21 @@ final class PdoConnectionTest extends TestCase
 
         self::assertFalse($lock->released);
         self::assertSame(['alpha', 'beta'], $connection->locks()->held());
+    }
+
+    #[Test]
+    public function it_refuses_named_locks_when_the_config_asks_for_a_persistent_session(): void
+    {
+        $connection = new PdoConnection(new ConnectionConfig(
+            driver: DriverName::SQLite,
+            name: 'persistent',
+            database: ':memory:',
+            options: [PDO::ATTR_PERSISTENT => true],
+        ), new LockingSQLiteDriver());
+
+        $this->expectException(UnsupportedLockException::class);
+
+        $connection->locks()->tryAcquire('alpha');
     }
 
     #[Test]

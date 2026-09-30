@@ -6,8 +6,11 @@ namespace Dirthara\Database\Exception;
 
 use RuntimeException;
 use Dirthara\Database\Query\Clause\Lock;
+use Dirthara\Database\Connection\Operation;
+use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 
 use function sprintf;
+use function array_merge;
 
 final class UnsupportedLockException extends RuntimeException implements DatabaseException
 {
@@ -36,6 +39,18 @@ final class UnsupportedLockException extends RuntimeException implements Databas
         return new self(message: sprintf('%s does not support named locks.', $database), context: [
             'database' => $database,
         ]);
+    }
+
+    public static function persistentSession(ConnectionConfig $config): self
+    {
+        return new self(
+            message: sprintf(
+                'Connection "%s" uses a persistent PDO session, which outlives the connection and would keep its named '
+                . 'locks; named locks need a session that ends with the connection.',
+                self::printable($config->name),
+            ),
+            context: array_merge($config->diagnostics(), ['operation' => Operation::AcquireLock->value]),
+        );
     }
 
     public static function lockedShape(string $construct, Lock $lock): self

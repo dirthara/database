@@ -91,6 +91,11 @@ final class PdoLockManager implements LockManager
         }
 
         $session = ($this->pdo)();
+
+        if ($session->getAttribute(PDO::ATTR_PERSISTENT) === true) {
+            throw UnsupportedLockException::persistentSession($this->config);
+        }
+
         $resource = $grammar->resource($this->config, $name);
 
         try {

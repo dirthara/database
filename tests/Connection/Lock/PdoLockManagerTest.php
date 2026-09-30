@@ -188,6 +188,40 @@ final class PdoLockManagerTest extends TestCase
     }
 
     #[Test]
+    public function it_refuses_named_locks_on_a_persistent_session(): void
+    {
+        $grammar = new ScriptedNamedLockGrammar();
+        $session = new PDO('sqlite::memory:', options: [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_PERSISTENT => true,
+        ]);
+        $manager = new PdoLockManager(static fn(): PDO => $session, $grammar, $this->config());
+
+        try {
+            $manager->acquire('alpha');
+
+            self::fail('Expected an UnsupportedLockException.');
+        } catch (UnsupportedLockException $exception) {
+            self::assertSame(
+                'Connection "testing" uses a persistent PDO session, which outlives the connection and would keep its '
+                . 'named locks; named locks need a session that ends with the connection.',
+                $exception->getMessage(),
+            );
+            self::assertSame('acquire_lock', $exception->context['operation']);
+            self::assertSame('testing', $exception->context['connection']);
+        }
+
+        try {
+            $manager->tryAcquire('alpha');
+
+            self::fail('Expected an UnsupportedLockException.');
+        } catch (UnsupportedLockException) {
+            self::assertSame([], $manager->held());
+            self::assertSame([], $grammar->statements);
+        }
+    }
+
+    #[Test]
     public function it_wraps_a_failing_acquire_statement(): void
     {
         $manager = $this->manager(new ScriptedNamedLockGrammar(acquire: 'SELECT outcome FROM missing_table WHERE ?'));
