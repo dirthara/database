@@ -73,9 +73,16 @@ it has been `released`. `release()` gives the lock back:
   new session to do so.
 - Releasing a lock a second time throws a `NamedLockException` and sends nothing
   to the database.
-- If the release statement fails, it throws a `NamedLockException` and the lock
-  counts as released: the connection stops tracking it, and the database
-  releases it when the session ends.
+- A lock only counts as released once the database has confirmed it. If the
+  release statement fails, or the database reports the lock was not released,
+  it throws a `NamedLockException` and the lock stays held: `released` is still
+  false, the connection still lists it, acquiring it again is still refused, and
+  `release()` can be retried. The databases count repeated acquisitions, so
+  forgetting a lock the database may still hold would let a later acquisition
+  stack on top of it.
+- Because the lock stays held, a connection whose release keeps failing also
+  keeps refusing to `disconnect()`. Its session, and every lock in it, ends when
+  the connection object is dropped or the server closes the session.
 
 Release explicitly, in a `finally` block. There is no destructor that releases a
 forgotten lock, because a destructor that talks to the database can run at a

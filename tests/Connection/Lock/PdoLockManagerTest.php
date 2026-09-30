@@ -242,7 +242,7 @@ final class PdoLockManagerTest extends TestCase
     }
 
     #[Test]
-    public function it_reports_a_refused_release_and_stops_tracking_the_lock(): void
+    public function a_refused_release_keeps_the_lock_held(): void
     {
         $manager = $this->manager(new ScriptedNamedLockGrammar(release: ScriptedNamedLockGrammar::CONTENDED));
         $lock = $manager->acquire('alpha');
@@ -253,23 +253,23 @@ final class PdoLockManagerTest extends TestCase
             self::fail('Expected a NamedLockException.');
         } catch (NamedLockException $exception) {
             self::assertSame(
-                'Unable to release the named lock "alpha" on connection "testing"; it is no longer tracked, and the '
-                . 'database releases it when the session ends.',
+                'Unable to release the named lock "alpha" on connection "testing"; the connection still counts it as '
+                . 'held.',
                 $exception->getMessage(),
             );
             self::assertSame('release_lock', $exception->context['operation']);
         }
 
-        self::assertTrue($lock->released);
-        self::assertSame([], $manager->held());
+        self::assertFalse($lock->released);
+        self::assertSame(['alpha'], $manager->held());
     }
 
     #[Test]
-    public function it_wraps_a_failing_release_statement(): void
+    public function a_failed_release_still_refuses_to_acquire_the_lock_again(): void
     {
-        $lock = $this->manager(
-            new ScriptedNamedLockGrammar(release: 'SELECT outcome FROM missing_table WHERE ?'),
-        )->acquire('alpha');
+        $grammar = new ScriptedNamedLockGrammar(release: 'SELECT outcome FROM missing_table WHERE ?');
+        $manager = $this->manager($grammar);
+        $lock = $manager->acquire('alpha');
 
         try {
             $lock->release();
@@ -279,6 +279,48 @@ final class PdoLockManagerTest extends TestCase
             self::assertInstanceOf(PDOException::class, $exception->getPrevious());
             self::assertSame('HY000', $exception->context['sqlstate']);
         }
+
+        self::assertFalse($lock->released);
+
+        $this->expectException(NamedLockException::class);
+        $this->expectExceptionMessageIs(
+            'Connection "testing" already holds the named lock "alpha"; named locks are not reentrant.',
+        );
+
+        try {
+            $manager->tryAcquire('alpha');
+        } finally {
+            self::assertCount(2, $grammar->statements);
+        }
+    }
+
+    #[Test]
+    public function a_failed_release_can_be_retried(): void
+    {
+        $session = $this->pdo();
+        $session->exec('CREATE TABLE release_outcome (outcome INTEGER)');
+        $session->exec('INSERT INTO release_outcome (outcome) VALUES (0)');
+
+        $manager = new PdoLockManager(
+            static fn(): PDO => $session,
+            new ScriptedNamedLockGrammar(release: 'SELECT outcome FROM release_outcome WHERE ? IS NOT NULL'),
+            $this->config(),
+        );
+        $lock = $manager->acquire('alpha');
+
+        try {
+            $lock->release();
+
+            self::fail('Expected a NamedLockException.');
+        } catch (NamedLockException) {
+            self::assertSame(['alpha'], $manager->held());
+        }
+
+        $session->exec('UPDATE release_outcome SET outcome = 1');
+        $lock->release();
+
+        self::assertTrue($lock->released);
+        self::assertSame([], $manager->held());
     }
 
     #[Test]

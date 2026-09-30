@@ -60,8 +60,7 @@ final class NamedLockException extends RuntimeException implements DatabaseExcep
     {
         return new self(
             message: sprintf(
-                'Unable to release the named lock "%s" on connection "%s"%s; it is no longer tracked, and the database '
-                . 'releases it when the session ends.',
+                'Unable to release the named lock "%s" on connection "%s"%s; the connection still counts it as held.',
                 self::printable($name),
                 self::printable($config->name),
                 $previous === null ? '' : PdoError::suffix($previous),

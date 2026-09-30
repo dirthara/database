@@ -117,8 +117,6 @@ final class PdoLockManager implements LockManager
      */
     private function release(string $name, PDO $session, NamedLockGrammar $grammar, int|string $resource): void
     {
-        unset($this->held[$name]);
-
         try {
             $outcome = $grammar->outcome($this->run($session, $grammar->release(), $resource));
         } catch (PDOException $exception) {
@@ -128,6 +126,8 @@ final class PdoLockManager implements LockManager
         if ($outcome !== NamedLockOutcome::Granted) {
             throw NamedLockException::releaseFailed($this->config, $name);
         }
+
+        unset($this->held[$name]);
     }
 
     private function run(PDO $session, string $sql, int|string $resource): ?int

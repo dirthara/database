@@ -30,8 +30,8 @@ final class AcquiredLock
             throw NamedLockException::alreadyReleased($this->name);
         }
 
-        $this->released = true;
-
         ($this->release)();
+
+        $this->released = true;
     }
 }
