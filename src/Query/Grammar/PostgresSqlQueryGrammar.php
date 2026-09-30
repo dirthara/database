@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Query\Grammar;
 
+use Dirthara\Database\Query\Clause\Lock;
 use Dirthara\Database\Query\Queries\InsertQuery;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
@@ -23,5 +24,10 @@ final class PostgresSqlQueryGrammar extends SqlQueryGrammar
         $sql = $this->insertSql($query, $bindings, '');
 
         return new CompiledQuery(sprintf('%s RETURNING %s', $sql, $this->wrapIdentifier($key)), $bindings);
+    }
+
+    protected function compileLock(Lock $lock): string
+    {
+        return $this->compileStandardLock($lock);
     }
 }

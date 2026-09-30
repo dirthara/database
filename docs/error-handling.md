@@ -49,6 +49,8 @@ All of them live in `Dirthara\Database\Exception`.
 | `InvalidQueryException` | `InvalidArgumentException` | The query cannot be described: an empty table, a null value where a comparison needs one, an insert whose rows disagree on columns, a binding that is not `scalar\|null`, a negative limit or offset, a chunk without an ordering, an offset on a mutation. |
 | `InvalidExpressionException` | `InvalidArgumentException` | An empty or malformed name, a name that looks like SQL, an empty alias, or an operator that is not a comparison. |
 | `UnsupportedQueryException` | `RuntimeException` | The query is describable but this database or grammar cannot express it: a limited or ordered update or delete on a driver without support, a joined mutation, `FULL JOIN` on MySQL, or a clause the grammar does not know. |
+| `UnsupportedLockException` | `RuntimeException` | A row lock the database cannot honour, such as any row lock on SQLite, or a lock on a query or operation it cannot apply to. See [locking rows](query-builder/row-locks.md#what-can-be-locked). |
+| `RowLockException` | `RuntimeException` | A locked select is run outside a transaction. |
 | `GrammarRegistryException` | `InvalidArgumentException` | A query grammar registered twice for a driver, or requested for a driver that has none. |
 
 Catch the specific type when the recovery differs — retrying is reasonable for a
@@ -142,6 +144,8 @@ throw $exception->addContext(['request_id' => $requestId]);
 | `field` | The DSN field whose value was rejected. The value itself is left out. |
 | `parameter` | The DSN parameter name that was rejected. |
 | `charset` | The charset that was rejected. |
+| `lock_mode`, `lock_wait` | The requested row lock, as `LockMode` and `LockWait` values. |
+| `construct` | The part of a query a row lock cannot apply to. |
 | `prefix`, `maximum` | The savepoint prefix that was rejected, and the longest one allowed. |
 
 :::danger

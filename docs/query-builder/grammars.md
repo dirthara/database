@@ -13,10 +13,10 @@ compilers; each driver overrides only where its database differs.
 
 | Grammar | Quotes with | Overrides |
 | --- | --- | --- |
-| `MySqlQueryGrammar` | `` `name` `` | Paging, mutation limit, mutation ordering, rejects `FULL JOIN`. |
-| `PostgresSqlQueryGrammar` | `"name"` | Nothing — the standard SQL the base emits is what PostgreSQL wants. |
-| `SQLiteQueryGrammar` | `"name"` | Paging. |
-| `SqlServerQueryGrammar` | `[name]` | Paging, ordering, mutation limit, existence checks. |
+| `MySqlQueryGrammar` | `` `name` `` | Paging, mutation limit, mutation ordering, rejects `FULL JOIN`, row locks. |
+| `PostgresSqlQueryGrammar` | `"name"` | Row locks; otherwise the standard SQL the base emits is what PostgreSQL wants. |
+| `SQLiteQueryGrammar` | `"name"` | Paging, refuses row locks. |
+| `SqlServerQueryGrammar` | `[name]` | Paging, ordering, mutation limit, existence checks, row locks as table hints. |
 
 A grammar never guesses. When a clause cannot be expressed on that database it
 throws an `UnsupportedQueryException` while compiling, so the query fails where it was built
@@ -258,6 +258,8 @@ The seams a driver can override:
 | `compileMutationLimit()` | Where a limit goes on an update or delete, or whether it is refused. |
 | `compileMutationOrders()` | The ordering of an update or delete, or whether it is refused. |
 | `wrapExists()` | How an existence check is wrapped. |
+| `compileLock()` | The locking clause after a select. Refuses every row lock unless overridden; `compileStandardLock()` builds `FOR UPDATE` and `FOR SHARE`. |
+| `compileTableLock()` | A lock placed after the table name, as SQL Server's table hints are. |
 
 Register it on the [resolver](../database.md#resolving-grammars) against the
 driver it belongs to.
@@ -270,6 +272,12 @@ this package's public API, and clause types get added as the builder grows. The
 passed through them is not. Pin a minor version if you ship a grammar of your
 own.
 :::
+
+## Row locks
+
+MySQL and PostgreSQL append a locking clause after the paging clause, SQL Server
+places table hints after the table name, and SQLite refuses every row lock. The
+[row locks](row-locks.md) page has the full mapping and what is refused.
 
 ## A caveat that is SQL's, not the builder's
 

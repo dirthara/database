@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Dirthara\Database\Tests\Fixtures\Query;
 
 use PHPUnit\Framework\TestCase;
+use Dirthara\Database\Query\Clause\Lock;
 use Dirthara\Database\Query\Clause\Union;
 use Dirthara\Database\Query\Sql\JoinType;
 use Dirthara\Database\Query\Clause\OrderBy;
@@ -45,6 +46,7 @@ trait BuildsSelectQueries
         array $orders = [],
         ?int $limit = null,
         ?int $offset = null,
+        ?Lock $lock = null,
     ): SelectQuery {
         return new SelectQuery(
             table: ExpressionFactory::from($table),
@@ -58,6 +60,7 @@ trait BuildsSelectQueries
             orders: $orders,
             limit: $limit,
             offset: $offset,
+            lock: $lock,
         );
     }
 

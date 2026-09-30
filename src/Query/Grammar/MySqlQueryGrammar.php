@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Query\Grammar;
 
+use Dirthara\Database\Query\Clause\Lock;
 use Dirthara\Database\Query\Sql\JoinType;
 use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Clause\JoinClause;
@@ -72,5 +73,10 @@ final class MySqlQueryGrammar extends SqlQueryGrammar
     protected function compileMutationLimit(?int $limit, string $operation): array
     {
         return $limit === null ? ['', ''] : ['', sprintf(' LIMIT %d', $limit)];
+    }
+
+    protected function compileLock(Lock $lock): string
+    {
+        return $this->compileStandardLock($lock);
     }
 }

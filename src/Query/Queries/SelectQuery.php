@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Query\Queries;
 
+use Dirthara\Database\Query\Clause\Lock;
 use Dirthara\Database\Query\Clause\Union;
 use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Clause\JoinClause;
@@ -38,5 +39,6 @@ final readonly class SelectQuery
         public array $orders,
         public ?int $limit,
         public ?int $offset,
+        public ?Lock $lock = null,
     ) {}
 }

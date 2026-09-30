@@ -6,14 +6,18 @@ namespace Dirthara\Database\Tests\Query\Grammar;
 
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
+use Dirthara\Database\Query\Clause\Lock;
 use Dirthara\Database\Query\Clause\Union;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Sql\JoinType;
+use Dirthara\Database\Query\Sql\LockMode;
+use Dirthara\Database\Query\Sql\LockWait;
 use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Clause\WhereIn;
 use Dirthara\Database\Query\Clause\RawWhere;
 use Dirthara\Database\Query\Clause\WhereNull;
 use Dirthara\Database\Query\Clause\JoinClause;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Database\Query\Clause\NestedWhere;
 use Dirthara\Database\Query\Clause\WhereColumn;
 use Dirthara\Database\Query\Clause\WhereExists;
@@ -1191,5 +1195,33 @@ final class MySqlQueryGrammarTest extends TestCase
                 limit: 5,
             ))->sql,
         );
+    }
+
+    /**
+     * @return iterable<string, array{LockMode, LockWait, string}>
+     */
+    public static function locks(): iterable
+    {
+        yield 'update' => [LockMode::Update, LockWait::Wait, ' FOR UPDATE'];
+        yield 'update without waiting' => [LockMode::Update, LockWait::NoWait, ' FOR UPDATE NOWAIT'];
+        yield 'update skipping locked rows' => [LockMode::Update, LockWait::SkipLocked, ' FOR UPDATE SKIP LOCKED'];
+        yield 'share' => [LockMode::Share, LockWait::Wait, ' FOR SHARE'];
+        yield 'share without waiting' => [LockMode::Share, LockWait::NoWait, ' FOR SHARE NOWAIT'];
+        yield 'share skipping locked rows' => [LockMode::Share, LockWait::SkipLocked, ' FOR SHARE SKIP LOCKED'];
+    }
+
+    #[Test]
+    #[DataProvider('locks')]
+    public function it_appends_the_row_lock_after_the_limit(LockMode $mode, LockWait $wait, string $clause): void
+    {
+        $query = $this->grammar->compileSelect($this->select(
+            wheres: [new Where(new Identifier('status'), ComparisonOperator::Equal, 'queued', BooleanOperator::And)],
+            orders: [new OrderBy(new Identifier('id'), OrderDirection::Ascending)],
+            limit: 1,
+            lock: new Lock($mode, $wait),
+        ));
+
+        self::assertSame('SELECT * FROM `users` WHERE `status` = ? ORDER BY `id` ASC LIMIT 1' . $clause, $query->sql);
+        self::assertSame(['queued'], $query->bindings);
     }
 }

@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Query\Grammar;
 
+use Dirthara\Database\Query\Clause\Lock;
 use Dirthara\Database\Query\Clause\Where;
+use Dirthara\Database\Query\Sql\LockMode;
+use Dirthara\Database\Query\Sql\LockWait;
 use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Clause\WhereIn;
 use Dirthara\Database\Query\Clause\RawWhere;
@@ -26,6 +29,7 @@ use Dirthara\Database\Query\Queries\CompiledQuery;
 use Dirthara\Database\Query\Sql\AggregateFunction;
 use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Exception\InvalidQueryException;
+use Dirthara\Database\Exception\UnsupportedLockException;
 use Dirthara\Database\Exception\UnsupportedQueryException;
 
 use function explode;
@@ -34,6 +38,7 @@ use function sprintf;
 use function array_map;
 use function is_scalar;
 use function array_keys;
+use function strtolower;
 use function array_merge;
 use function str_replace;
 use function array_values;
@@ -44,6 +49,10 @@ abstract class SqlQueryGrammar implements QueryGrammar
 {
     public function compileSelect(SelectQuery $query): CompiledQuery
     {
+        if ($query->lock !== null) {
+            $this->assertLockable($query, $query->lock);
+        }
+
         $bindings = [];
         $sql = $this->compileSelectSql($query, $bindings);
 
@@ -52,6 +61,10 @@ abstract class SqlQueryGrammar implements QueryGrammar
 
     public function compileExists(SelectQuery $query): CompiledQuery
     {
+        if ($query->lock !== null) {
+            throw UnsupportedLockException::lockedOperation('exists()', $query->lock);
+        }
+
         $bindings = [];
         $sql = $this->compileSelectSql($this->unordered($query), $bindings);
 
@@ -65,6 +78,10 @@ abstract class SqlQueryGrammar implements QueryGrammar
 
     public function compileAggregate(SelectQuery $query, AggregateFunction $function, Expression $column): CompiledQuery
     {
+        if ($query->lock !== null) {
+            throw UnsupportedLockException::lockedOperation(strtolower($function->value) . '()', $query->lock);
+        }
+
         $bindings = [];
 
         if ($query->unions !== []) {
@@ -209,6 +226,10 @@ abstract class SqlQueryGrammar implements QueryGrammar
         $sql = $this->compileSelectCore($query, $bindings, $columns);
 
         foreach ($query->unions as $union) {
+            if ($union->query->lock !== null) {
+                throw UnsupportedLockException::nestedLock($union->query->lock);
+            }
+
             $sql .= sprintf(
                 ' UNION %s%s',
                 $union->all ? 'ALL ' : '',
@@ -216,7 +237,9 @@ abstract class SqlQueryGrammar implements QueryGrammar
             );
         }
 
-        return $sql . $this->compileOrders($query, $bindings) . $this->compileLimit($query);
+        $sql .= $this->compileOrders($query, $bindings) . $this->compileLimit($query);
+
+        return $query->lock === null ? $sql : $sql . $this->compileLock($query->lock);
     }
 
     /**
@@ -227,11 +250,12 @@ abstract class SqlQueryGrammar implements QueryGrammar
         $columns ??= $this->compileExpressions($query->columns, $bindings);
 
         $sql = sprintf(
-            'SELECT %s%s%s FROM %s',
+            'SELECT %s%s%s FROM %s%s',
             $query->distinct ? 'DISTINCT ' : '',
             $this->compileTop($query),
             $columns,
             $this->wrap($query->table, $bindings),
+            $query->lock === null ? '' : $this->compileTableLock($query->lock),
         );
 
         foreach ($query->joins as $join) {
@@ -269,6 +293,33 @@ abstract class SqlQueryGrammar implements QueryGrammar
     protected function compileTop(SelectQuery $query): string
     {
         return '';
+    }
+
+    /**
+     * @throws UnsupportedLockException
+     */
+    protected function compileLock(Lock $lock): string
+    {
+        throw UnsupportedLockException::rowLocksUnsupported(static::class, $lock);
+    }
+
+    protected function compileTableLock(Lock $lock): string
+    {
+        return '';
+    }
+
+    protected function compileStandardLock(Lock $lock): string
+    {
+        $mode = match ($lock->mode) {
+            LockMode::Update => ' FOR UPDATE',
+            LockMode::Share => ' FOR SHARE',
+        };
+
+        return $mode . match ($lock->wait) {
+            LockWait::Wait => '',
+            LockWait::NoWait => ' NOWAIT',
+            LockWait::SkipLocked => ' SKIP LOCKED',
+        };
     }
 
     /**
@@ -409,6 +460,25 @@ abstract class SqlQueryGrammar implements QueryGrammar
             $where instanceof WhereExists => $this->compileWhereExists($where, $bindings),
             default => throw UnsupportedQueryException::unknownWhere($where::class),
         };
+    }
+
+    /**
+     * @throws UnsupportedLockException
+     */
+    private function assertLockable(SelectQuery $query, Lock $lock): void
+    {
+        $construct = match (true) {
+            $query->unions !== [] => 'a union',
+            $query->joins !== [] => 'a join',
+            $query->groups !== [] => 'grouping',
+            $query->havings !== [] => 'a having condition',
+            $query->distinct => 'distinct rows',
+            default => null,
+        };
+
+        if ($construct !== null) {
+            throw UnsupportedLockException::lockedShape($construct, $lock);
+        }
     }
 
     private function unordered(SelectQuery $query): SelectQuery
@@ -563,6 +633,10 @@ abstract class SqlQueryGrammar implements QueryGrammar
      */
     private function compileWhereExists(WhereExists $where, array &$bindings): string
     {
+        if ($where->query->lock !== null) {
+            throw UnsupportedLockException::nestedLock($where->query->lock);
+        }
+
         $subquery = $this->compileSelect($this->unordered($where->query));
 
         $bindings = array_merge($bindings, $subquery->bindings);

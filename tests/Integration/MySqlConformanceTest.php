@@ -9,8 +9,10 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\Group;
 use Dirthara\Database\Connection\Driver\Driver;
 use Dirthara\Database\Connection\PdoConnection;
+use Dirthara\Database\Query\Grammar\QueryGrammar;
 use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Connection\Driver\MySqlDriver;
+use Dirthara\Database\Query\Grammar\MySqlQueryGrammar;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 
 #[Group('conformance')]
@@ -41,6 +43,11 @@ final class MySqlConformanceTest extends TestCase
             password: $this->env('DIRTHARA_MYSQL_PASSWORD', 'dirthara'),
             charset: $charset,
         );
+    }
+
+    protected function queryGrammar(): QueryGrammar
+    {
+        return new MySqlQueryGrammar();
     }
 
     protected function usersTable(): string

@@ -7,11 +7,16 @@ namespace Dirthara\Database\Tests\Query\Grammar;
 use stdClass;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
+use Dirthara\Database\Query\Clause\Lock;
+use Dirthara\Database\Query\Clause\Union;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Sql\JoinType;
+use Dirthara\Database\Query\Sql\LockMode;
+use Dirthara\Database\Query\Sql\LockWait;
 use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Clause\WhereIn;
 use Dirthara\Database\Query\Clause\WhereNull;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Database\Query\Clause\NestedWhere;
 use Dirthara\Database\Query\Clause\WhereColumn;
 use Dirthara\Database\Query\Clause\WhereExists;
@@ -19,6 +24,7 @@ use Dirthara\Database\Query\Sql\OrderDirection;
 use Dirthara\Database\Query\Clause\WhereBetween;
 use Dirthara\Database\Query\Queries\DeleteQuery;
 use Dirthara\Database\Query\Queries\InsertQuery;
+use Dirthara\Database\Query\Queries\SelectQuery;
 use Dirthara\Database\Query\Queries\UpdateQuery;
 use Dirthara\Database\Query\Sql\BooleanOperator;
 use Dirthara\Database\Query\Expression\Identifier;
@@ -26,7 +32,9 @@ use Dirthara\Database\Query\Sql\AggregateFunction;
 use Dirthara\Database\Query\Sql\ComparisonOperator;
 use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Exception\InvalidQueryException;
+use Dirthara\Database\Exception\UnsupportedLockException;
 use Dirthara\Database\Exception\UnsupportedQueryException;
+use Dirthara\Database\Tests\Fixtures\Query\LocklessGrammar;
 use Dirthara\Database\Query\Grammar\PostgresSqlQueryGrammar;
 use Dirthara\Database\Tests\Fixtures\Query\UnsupportedWhere;
 use Dirthara\Database\Tests\Fixtures\Query\BuildsSelectQueries;
@@ -654,5 +662,163 @@ final class PostgresSqlQueryGrammarTest extends TestCase
         $this->grammar->compileSelect($this->select(wheres: [
             new Where(new Identifier('meta'), ComparisonOperator::Equal, new stdClass(), BooleanOperator::And),
         ]));
+    }
+
+    /**
+     * @return iterable<string, array{LockMode, LockWait, string}>
+     */
+    public static function locks(): iterable
+    {
+        yield 'update' => [LockMode::Update, LockWait::Wait, ' FOR UPDATE'];
+        yield 'update without waiting' => [LockMode::Update, LockWait::NoWait, ' FOR UPDATE NOWAIT'];
+        yield 'update skipping locked rows' => [LockMode::Update, LockWait::SkipLocked, ' FOR UPDATE SKIP LOCKED'];
+        yield 'share' => [LockMode::Share, LockWait::Wait, ' FOR SHARE'];
+        yield 'share without waiting' => [LockMode::Share, LockWait::NoWait, ' FOR SHARE NOWAIT'];
+        yield 'share skipping locked rows' => [LockMode::Share, LockWait::SkipLocked, ' FOR SHARE SKIP LOCKED'];
+    }
+
+    #[Test]
+    #[DataProvider('locks')]
+    public function it_appends_the_row_lock_after_the_limit(LockMode $mode, LockWait $wait, string $clause): void
+    {
+        $query = $this->grammar->compileSelect($this->select(
+            wheres: [new Where(new Identifier('status'), ComparisonOperator::Equal, 'queued', BooleanOperator::And)],
+            orders: [new OrderBy(new Identifier('id'), OrderDirection::Ascending)],
+            limit: 1,
+            lock: new Lock($mode, $wait),
+        ));
+
+        self::assertSame('SELECT * FROM "users" WHERE "status" = ? ORDER BY "id" ASC LIMIT 1' . $clause, $query->sql);
+        self::assertSame(['queued'], $query->bindings);
+    }
+
+    #[Test]
+    public function it_compiles_a_row_lock_without_a_transaction(): void
+    {
+        self::assertSame(
+            'SELECT * FROM "users" FOR UPDATE',
+            $this->grammar->compileSelect($this->select(lock: new Lock(LockMode::Update, LockWait::Wait)))->sql,
+        );
+    }
+
+    /**
+     * @return iterable<string, array{SelectQuery, string}>
+     */
+    public static function unlockableShapes(): iterable
+    {
+        $grammar = new self('unlockableShapes');
+        $lock = new Lock(LockMode::Update, LockWait::SkipLocked);
+
+        yield 'union' => [
+            $grammar->select(unions: [new Union($grammar->select(table: 'archived'), all: false)], lock: $lock),
+            'a union',
+        ];
+        yield 'join' => [$grammar->select(joins: [$grammar->join(JoinType::Inner)], lock: $lock), 'a join'];
+        yield 'grouping' => [$grammar->select(groups: $grammar->columns('status'), lock: $lock), 'grouping'];
+        yield 'having' => [
+            $grammar->select(havings: [new WhereNull(
+                new Identifier('status'),
+                negated: false,
+                boolean: BooleanOperator::And,
+            )], lock: $lock),
+            'a having condition',
+        ];
+        yield 'distinct' => [$grammar->select(distinct: true, lock: $lock), 'distinct rows'];
+    }
+
+    #[Test]
+    #[DataProvider('unlockableShapes')]
+    public function it_refuses_a_row_lock_on_a_query_it_cannot_lock_faithfully(
+        SelectQuery $query,
+        string $construct,
+    ): void {
+        try {
+            $this->grammar->compileSelect($query);
+
+            self::fail('Expected an UnsupportedLockException.');
+        } catch (UnsupportedLockException $exception) {
+            self::assertSame(
+                sprintf('A pessimistic row lock cannot be applied to a query with %s.', $construct),
+                $exception->getMessage(),
+            );
+            self::assertSame(
+                ['construct' => $construct, 'lock_mode' => 'update', 'lock_wait' => 'skip_locked'],
+                $exception->context,
+            );
+        }
+    }
+
+    #[Test]
+    public function it_refuses_an_existence_check_on_a_locked_query(): void
+    {
+        $this->expectException(UnsupportedLockException::class);
+        $this->expectExceptionMessageIs(
+            'A query with a pessimistic row lock cannot run exists(); lock rows with get(), first(), or cursor().',
+        );
+
+        $this->grammar->compileExists($this->select(lock: new Lock(LockMode::Update, LockWait::Wait)));
+    }
+
+    #[Test]
+    public function it_refuses_an_aggregate_on_a_locked_query(): void
+    {
+        $this->expectException(UnsupportedLockException::class);
+        $this->expectExceptionMessageIs(
+            'A query with a pessimistic row lock cannot run avg(); lock rows with get(), first(), or cursor().',
+        );
+
+        $this->grammar->compileAggregate(
+            $this->select(lock: new Lock(LockMode::Share, LockWait::Wait)),
+            AggregateFunction::Average,
+            new Identifier('age'),
+        );
+    }
+
+    #[Test]
+    public function it_refuses_a_locked_union_operand(): void
+    {
+        $this->expectException(UnsupportedLockException::class);
+        $this->expectExceptionMessageIs(
+            'A pessimistic row lock cannot be applied to a subquery or a union operand; lock the outer query instead.',
+        );
+
+        $this->grammar->compileSelect($this->select(unions: [
+            new Union($this->select(table: 'archived', lock: new Lock(LockMode::Update, LockWait::Wait)), all: true),
+        ]));
+    }
+
+    #[Test]
+    public function it_refuses_a_locked_subquery(): void
+    {
+        $this->expectException(UnsupportedLockException::class);
+        $this->expectExceptionMessageIs(
+            'A pessimistic row lock cannot be applied to a subquery or a union operand; lock the outer query instead.',
+        );
+
+        $this->grammar->compileSelect($this->select(wheres: [
+            new WhereExists(
+                query: $this->select(table: 'posts', lock: new Lock(LockMode::Update, LockWait::Wait)),
+                negated: false,
+                boolean: BooleanOperator::And,
+            ),
+        ]));
+    }
+
+    #[Test]
+    public function a_grammar_without_row_lock_support_refuses_rather_than_dropping_the_lock(): void
+    {
+        $grammar = new LocklessGrammar();
+
+        try {
+            $grammar->compileSelect($this->select(lock: new Lock(LockMode::Update, LockWait::NoWait)));
+
+            self::fail('Expected an UnsupportedLockException.');
+        } catch (UnsupportedLockException $exception) {
+            self::assertSame(
+                sprintf('%s does not support pessimistic row locks.', LocklessGrammar::class),
+                $exception->getMessage(),
+            );
+            self::assertSame('no_wait', $exception->context['lock_wait']);
+        }
     }
 }

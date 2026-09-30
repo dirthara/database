@@ -5,15 +5,19 @@ declare(strict_types=1);
 namespace Dirthara\Database\Query;
 
 use Closure;
+use Dirthara\Database\Query\Clause\Lock;
 use Dirthara\Database\Query\Clause\Union;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Sql\JoinType;
+use Dirthara\Database\Query\Sql\LockMode;
+use Dirthara\Database\Query\Sql\LockWait;
 use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Clause\WhereIn;
 use Dirthara\Database\Connection\Connection;
 use Dirthara\Database\Query\Clause\RawWhere;
 use Dirthara\Database\Query\Clause\WhereNull;
 use Dirthara\Database\Query\Clause\JoinClause;
+use Dirthara\Database\Connection\Result\Result;
 use Dirthara\Database\Exception\QueryException;
 use Dirthara\Database\Query\Clause\NestedWhere;
 use Dirthara\Database\Query\Clause\WhereClause;
@@ -26,6 +30,7 @@ use Dirthara\Database\Query\Queries\InsertQuery;
 use Dirthara\Database\Query\Queries\SelectQuery;
 use Dirthara\Database\Query\Queries\UpdateQuery;
 use Dirthara\Database\Query\Sql\BooleanOperator;
+use Dirthara\Database\Exception\RowLockException;
 use Dirthara\Database\Query\Grammar\QueryGrammar;
 use Dirthara\Database\Query\Expression\Expression;
 use Dirthara\Database\Query\Expression\Identifier;
@@ -35,6 +40,7 @@ use Dirthara\Database\Query\Sql\ComparisonOperator;
 use Dirthara\Database\Exception\ConnectionException;
 use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Exception\InvalidQueryException;
+use Dirthara\Database\Exception\UnsupportedLockException;
 use Dirthara\Database\Query\Expression\ExpressionFactory;
 use Dirthara\Database\Exception\UnsupportedQueryException;
 
@@ -93,6 +99,8 @@ final class QueryBuilder
     private ?int $limit = null;
 
     private ?int $offset = null;
+
+    private ?Lock $lock = null;
 
     private readonly Expression $table;
 
@@ -474,17 +482,41 @@ final class QueryBuilder
         return $this;
     }
 
+    public function forUpdate(LockWait $wait = LockWait::Wait): self
+    {
+        return $this->lock(LockMode::Update, $wait);
+    }
+
+    public function forShare(LockWait $wait = LockWait::Wait): self
+    {
+        return $this->lock(LockMode::Share, $wait);
+    }
+
+    public function lock(LockMode $mode, LockWait $wait = LockWait::Wait): self
+    {
+        $this->lock = new Lock(mode: $mode, wait: $wait);
+
+        return $this;
+    }
+
+    public function withoutLock(): self
+    {
+        $this->lock = null;
+
+        return $this;
+    }
+
     /**
      * @return list<array<string, mixed>>
      *
      * @throws QueryException
      * @throws ConnectionException
+     * @throws RowLockException
+     * @throws UnsupportedLockException
      */
     public function get(): array
     {
-        $query = $this->grammar->compileSelect($this->toSelectQuery());
-
-        return $this->connection->execute($query->sql, $query->bindings)->all();
+        return $this->runSelect($this->toSelectQuery())->all();
     }
 
     /**
@@ -492,12 +524,12 @@ final class QueryBuilder
      *
      * @throws QueryException
      * @throws ConnectionException
+     * @throws RowLockException
+     * @throws UnsupportedLockException
      */
     public function cursor(): iterable
     {
-        $query = $this->grammar->compileSelect($this->toSelectQuery());
-
-        yield from $this->connection->execute($query->sql, $query->bindings)->iterate();
+        yield from $this->runSelect($this->toSelectQuery())->iterate();
     }
 
     /**
@@ -508,6 +540,8 @@ final class QueryBuilder
      */
     public function chunk(int $size, callable $callback): bool
     {
+        $this->assertUnlocked('chunk()');
+
         if ($size < 1) {
             throw InvalidQueryException::invalidChunkSize($size);
         }
@@ -549,6 +583,8 @@ final class QueryBuilder
      *
      * @throws QueryException
      * @throws ConnectionException
+     * @throws RowLockException
+     * @throws UnsupportedLockException
      */
     public function first(): ?array
     {
@@ -556,9 +592,7 @@ final class QueryBuilder
 
         $query->limit(1);
 
-        $compiled = $this->grammar->compileSelect($query->toSelectQuery());
-
-        return $this->connection->execute($compiled->sql, $compiled->bindings)->first();
+        return $this->runSelect($query->toSelectQuery())->first();
     }
 
     /**
@@ -634,6 +668,8 @@ final class QueryBuilder
      */
     public function insert(array $values): int
     {
+        $this->assertUnlocked('insert()');
+
         if ($values === []) {
             return 0;
         }
@@ -653,6 +689,8 @@ final class QueryBuilder
      */
     public function insertGetId(array $values, string $key = 'id'): ?string
     {
+        $this->assertUnlocked('insertGetId()');
+
         $rows = $this->normaliseInsertRows($values);
 
         if (count($rows) !== 1) {
@@ -690,6 +728,8 @@ final class QueryBuilder
      */
     public function update(array $values): int
     {
+        $this->assertUnlocked('update()');
+
         if ($values === []) {
             return 0;
         }
@@ -713,6 +753,8 @@ final class QueryBuilder
      */
     public function delete(): int
     {
+        $this->assertUnlocked('delete()');
+
         $this->assertMutable('delete');
 
         $query = $this->grammar->compileDelete(new DeleteQuery(
@@ -760,7 +802,35 @@ final class QueryBuilder
             orders: $this->orders,
             limit: $this->limit,
             offset: $this->offset,
+            lock: $this->lock,
         );
+    }
+
+    /**
+     * @throws QueryException
+     * @throws ConnectionException
+     * @throws RowLockException
+     * @throws UnsupportedLockException
+     */
+    private function runSelect(SelectQuery $query): Result
+    {
+        $compiled = $this->grammar->compileSelect($query);
+
+        if ($query->lock !== null && !$this->connection->transactions()->inTransaction()) {
+            throw RowLockException::outsideTransaction($this->connection->name(), $query->lock);
+        }
+
+        return $this->connection->execute($compiled->sql, $compiled->bindings);
+    }
+
+    /**
+     * @throws UnsupportedLockException
+     */
+    private function assertUnlocked(string $operation): void
+    {
+        if ($this->lock !== null) {
+            throw UnsupportedLockException::lockedOperation($operation, $this->lock);
+        }
     }
 
     private function addBasicWhere(

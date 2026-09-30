@@ -6,8 +6,11 @@ namespace Dirthara\Database\Tests\Query\Grammar;
 
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
+use Dirthara\Database\Query\Clause\Lock;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Sql\JoinType;
+use Dirthara\Database\Query\Sql\LockMode;
+use Dirthara\Database\Query\Sql\LockWait;
 use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Clause\WhereIn;
 use Dirthara\Database\Query\Clause\WhereNull;
@@ -23,6 +26,7 @@ use Dirthara\Database\Query\Sql\AggregateFunction;
 use Dirthara\Database\Query\Sql\ComparisonOperator;
 use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Query\Grammar\SQLiteQueryGrammar;
+use Dirthara\Database\Exception\UnsupportedLockException;
 use Dirthara\Database\Exception\UnsupportedQueryException;
 use Dirthara\Database\Tests\Fixtures\Query\BuildsSelectQueries;
 
@@ -354,5 +358,21 @@ final class SQLiteQueryGrammarTest extends TestCase
             orders: [],
             limit: 1,
         ));
+    }
+
+    #[Test]
+    public function it_refuses_a_row_lock_rather_than_compiling_an_unlocked_query(): void
+    {
+        try {
+            $this->grammar->compileSelect($this->select(lock: new Lock(LockMode::Update, LockWait::SkipLocked)));
+
+            self::fail('Expected an UnsupportedLockException.');
+        } catch (UnsupportedLockException $exception) {
+            self::assertSame('SQLite does not support pessimistic row locks.', $exception->getMessage());
+            self::assertSame(
+                ['database' => 'SQLite', 'lock_mode' => 'update', 'lock_wait' => 'skip_locked'],
+                $exception->context,
+            );
+        }
     }
 }

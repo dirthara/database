@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Query\Grammar;
 
+use Dirthara\Database\Query\Clause\Lock;
+use Dirthara\Database\Query\Sql\LockMode;
+use Dirthara\Database\Query\Sql\LockWait;
 use Dirthara\Database\Query\Queries\InsertQuery;
 use Dirthara\Database\Query\Queries\SelectQuery;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
 
+use function implode;
 use function sprintf;
 
 final class SqlServerQueryGrammar extends SqlQueryGrammar
@@ -74,5 +78,26 @@ final class SqlServerQueryGrammar extends SqlQueryGrammar
     protected function wrapExists(string $select): string
     {
         return sprintf('SELECT CASE WHEN EXISTS(%s) THEN 1 ELSE 0 END AS %s', $select, $this->quote('exists'));
+    }
+
+    protected function compileLock(Lock $lock): string
+    {
+        return '';
+    }
+
+    protected function compileTableLock(Lock $lock): string
+    {
+        $hints = match ($lock->mode) {
+            LockMode::Update => ['ROWLOCK', 'XLOCK'],
+            LockMode::Share => ['ROWLOCK', 'REPEATABLEREAD'],
+        };
+
+        $wait = match ($lock->wait) {
+            LockWait::Wait => [],
+            LockWait::NoWait => ['NOWAIT'],
+            LockWait::SkipLocked => ['READPAST'],
+        };
+
+        return sprintf(' WITH (%s)', implode(', ', [...$hints, ...$wait]));
     }
 }

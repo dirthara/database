@@ -4,14 +4,20 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Tests\Query\Grammar;
 
+use function sprintf;
+
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
+use Dirthara\Database\Query\Clause\Lock;
 use Dirthara\Database\Query\Clause\Union;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Sql\JoinType;
+use Dirthara\Database\Query\Sql\LockMode;
+use Dirthara\Database\Query\Sql\LockWait;
 use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Clause\WhereIn;
 use Dirthara\Database\Query\Clause\WhereNull;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Database\Query\Clause\NestedWhere;
 use Dirthara\Database\Query\Clause\WhereExists;
 use Dirthara\Database\Query\Sql\OrderDirection;
@@ -450,6 +456,60 @@ final class SqlServerQueryGrammarTest extends TestCase
                 wheres: [],
                 orders: [],
                 limit: 5,
+            ))->sql,
+        );
+    }
+
+    /**
+     * @return iterable<string, array{LockMode, LockWait, string}>
+     */
+    public static function locks(): iterable
+    {
+        yield 'update' => [LockMode::Update, LockWait::Wait, 'ROWLOCK, XLOCK'];
+        yield 'update without waiting' => [LockMode::Update, LockWait::NoWait, 'ROWLOCK, XLOCK, NOWAIT'];
+        yield 'update skipping locked rows' => [LockMode::Update, LockWait::SkipLocked, 'ROWLOCK, XLOCK, READPAST'];
+        yield 'share' => [LockMode::Share, LockWait::Wait, 'ROWLOCK, REPEATABLEREAD'];
+        yield 'share without waiting' => [LockMode::Share, LockWait::NoWait, 'ROWLOCK, REPEATABLEREAD, NOWAIT'];
+        yield 'share skipping locked rows' => [
+            LockMode::Share,
+            LockWait::SkipLocked,
+            'ROWLOCK, REPEATABLEREAD, READPAST',
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('locks')]
+    public function it_places_the_row_lock_as_a_table_hint(LockMode $mode, LockWait $wait, string $hints): void
+    {
+        $query = $this->grammar->compileSelect($this->select(
+            table: 'jobs as j',
+            wheres: [new Where(new Identifier('j.status'), ComparisonOperator::Equal, 'queued', BooleanOperator::And)],
+            orders: [new OrderBy(new Identifier('j.id'), OrderDirection::Ascending)],
+            limit: 1,
+            lock: new Lock($mode, $wait),
+        ));
+
+        self::assertSame(
+            sprintf(
+                'SELECT TOP (1) * FROM [jobs] AS [j] WITH (%s) WHERE [j].[status] = ? ORDER BY [j].[id] ASC',
+                $hints,
+            ),
+            $query->sql,
+        );
+        self::assertSame(['queued'], $query->bindings);
+    }
+
+    #[Test]
+    public function it_keeps_the_table_hint_on_a_paged_query(): void
+    {
+        self::assertSame(
+            'SELECT * FROM [jobs] WITH (ROWLOCK, XLOCK, READPAST) ORDER BY [id] ASC OFFSET 10 ROWS FETCH NEXT 5 ROWS ONLY',
+            $this->grammar->compileSelect($this->select(
+                table: 'jobs',
+                orders: [new OrderBy(new Identifier('id'), OrderDirection::Ascending)],
+                limit: 5,
+                offset: 10,
+                lock: new Lock(LockMode::Update, LockWait::SkipLocked),
             ))->sql,
         );
     }

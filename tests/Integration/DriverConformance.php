@@ -8,9 +8,15 @@ use PDO;
 use RuntimeException;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
+use Dirthara\Database\Query\QueryBuilder;
+use Dirthara\Database\Query\Sql\LockMode;
+use Dirthara\Database\Query\Sql\LockWait;
 use Dirthara\Database\Connection\Connection;
 use Dirthara\Database\Connection\Driver\Driver;
 use Dirthara\Database\Connection\PdoConnection;
+use Dirthara\Database\Exception\QueryException;
+use Dirthara\Database\Exception\RowLockException;
+use Dirthara\Database\Query\Grammar\QueryGrammar;
 use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
@@ -46,6 +52,13 @@ trait DriverConformance
      * A users table with an auto-incrementing id, a text name, and a boolean active flag.
      */
     abstract protected function usersTable(): string;
+
+    abstract protected function queryGrammar(): QueryGrammar;
+
+    protected function supportsRowLocks(): bool
+    {
+        return true;
+    }
 
     /**
      * The sequence lastInsertId() needs, for databases that cannot answer without one.
@@ -304,5 +317,226 @@ trait DriverConformance
         self::assertSame(0, $transactions->level());
         self::assertFalse($transactions->inTransaction());
         self::assertSame(['Ada'], $this->names());
+    }
+
+    #[Test]
+    public function a_row_locked_for_update_cannot_be_locked_again_without_waiting(): void
+    {
+        $this->seedRowLockTable();
+        $other = $this->otherSession();
+
+        try {
+            $this->connection()->transactions()->begin();
+            self::assertSame('Ada', $this->lockedName($this->connection(), 1, LockMode::Update));
+
+            $other->transactions()->begin();
+
+            try {
+                $this->lockedName($other, 1, LockMode::Update, LockWait::NoWait);
+
+                self::fail('Expected the second session to be refused the row.');
+            } catch (QueryException $exception) {
+                self::assertSame('execute', $exception->context['operation']);
+            }
+        } finally {
+            $this->abandon($other, $this->connection());
+        }
+    }
+
+    #[Test]
+    public function skip_locked_leaves_out_the_row_another_session_holds(): void
+    {
+        $this->seedRowLockTable();
+        $other = $this->otherSession();
+
+        try {
+            $this->connection()->transactions()->begin();
+            $this->lockedName($this->connection(), 1, LockMode::Update);
+
+            $other->transactions()->begin();
+
+            self::assertSame(['Grace', 'Linus'], $this->lockedNames($other, LockMode::Update, LockWait::SkipLocked));
+            self::assertSame(
+                'Grace',
+                $this->table($other)->forUpdate(LockWait::SkipLocked)->orderBy('id')->first()['name'] ?? null,
+            );
+        } finally {
+            $this->abandon($other, $this->connection());
+        }
+    }
+
+    #[Test]
+    public function rows_another_session_did_not_lock_stay_available(): void
+    {
+        $this->seedRowLockTable();
+        $other = $this->otherSession();
+
+        try {
+            $this->connection()->transactions()->begin();
+            $this->lockedName($this->connection(), 1, LockMode::Update);
+
+            $other->transactions()->begin();
+
+            self::assertSame('Grace', $this->lockedName($other, 2, LockMode::Update, LockWait::NoWait));
+            self::assertSame('Linus', $this->lockedName($other, 3, LockMode::Share, LockWait::NoWait));
+        } finally {
+            $this->abandon($other, $this->connection());
+        }
+    }
+
+    #[Test]
+    public function a_commit_releases_the_row_lock(): void
+    {
+        $this->seedRowLockTable();
+        $other = $this->otherSession();
+
+        try {
+            $this->connection()->transactions()->begin();
+            $this->lockedName($this->connection(), 1, LockMode::Update);
+            $this->connection()->transactions()->commit();
+
+            $other->transactions()->begin();
+
+            self::assertSame('Ada', $this->lockedName($other, 1, LockMode::Update, LockWait::NoWait));
+        } finally {
+            $this->abandon($other, $this->connection());
+        }
+    }
+
+    #[Test]
+    public function a_rollback_releases_the_row_lock(): void
+    {
+        $this->seedRowLockTable();
+        $other = $this->otherSession();
+
+        try {
+            $this->connection()->transactions()->begin();
+            $this->lockedName($this->connection(), 1, LockMode::Update);
+            $this->connection()->transactions()->rollback();
+
+            $other->transactions()->begin();
+
+            self::assertSame(
+                ['Ada', 'Grace', 'Linus'],
+                $this->lockedNames($other, LockMode::Update, LockWait::SkipLocked),
+            );
+        } finally {
+            $this->abandon($other, $this->connection());
+        }
+    }
+
+    #[Test]
+    public function share_locks_are_compatible_with_each_other_but_not_with_an_update_lock(): void
+    {
+        $this->seedRowLockTable();
+        $other = $this->otherSession();
+
+        try {
+            $this->connection()->transactions()->begin();
+            self::assertSame('Ada', $this->lockedName($this->connection(), 1, LockMode::Share));
+
+            $other->transactions()->begin();
+
+            self::assertSame('Ada', $this->lockedName($other, 1, LockMode::Share, LockWait::NoWait));
+            self::assertSame(['Grace', 'Linus'], $this->lockedNames($other, LockMode::Update, LockWait::SkipLocked));
+
+            try {
+                $this->lockedName($other, 1, LockMode::Update, LockWait::NoWait);
+
+                self::fail('Expected an update lock to conflict with a share lock.');
+            } catch (QueryException) {
+                self::assertTrue($other->transactions()->inTransaction());
+            }
+        } finally {
+            $this->abandon($other, $this->connection());
+        }
+    }
+
+    #[Test]
+    public function an_update_lock_blocks_a_share_lock(): void
+    {
+        $this->seedRowLockTable();
+        $other = $this->otherSession();
+
+        try {
+            $this->connection()->transactions()->begin();
+            $this->lockedName($this->connection(), 1, LockMode::Update);
+
+            $other->transactions()->begin();
+
+            self::assertSame(['Grace', 'Linus'], $this->lockedNames($other, LockMode::Share, LockWait::SkipLocked));
+
+            try {
+                $this->lockedName($other, 1, LockMode::Share, LockWait::NoWait);
+
+                self::fail('Expected a share lock to conflict with an update lock.');
+            } catch (QueryException) {
+                self::assertTrue($other->transactions()->inTransaction());
+            }
+        } finally {
+            $this->abandon($other, $this->connection());
+        }
+    }
+
+    #[Test]
+    public function a_locked_read_outside_a_transaction_is_refused_before_it_reaches_the_database(): void
+    {
+        $this->seedRowLockTable();
+
+        $this->expectException(RowLockException::class);
+
+        $this->table($this->connection())->forUpdate()->where('id', '=', 1)->get();
+    }
+
+    private function seedRowLockTable(): void
+    {
+        if (!$this->supportsRowLocks()) {
+            self::markTestSkipped(sprintf('%s does not support pessimistic row locks.', $this->driverName()->name));
+        }
+
+        $this->insert('Ada');
+        $this->insert('Grace');
+        $this->insert('Linus');
+    }
+
+    private function otherSession(): Connection
+    {
+        return new PdoConnection($this->config(), $this->driver());
+    }
+
+    private function table(Connection $connection): QueryBuilder
+    {
+        return new QueryBuilder($connection, $this->queryGrammar(), 'users');
+    }
+
+    private function lockedName(Connection $connection, int $id, LockMode $mode, LockWait $wait = LockWait::Wait): mixed
+    {
+        return (
+            $this->table($connection)->select('name')->lock($mode, $wait)->where('id', '=', $id)->first()['name']
+            ?? null
+        );
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function lockedNames(Connection $connection, LockMode $mode, LockWait $wait): array
+    {
+        $names = [];
+
+        foreach ($this->table($connection)->select('name')->lock($mode, $wait)->orderBy('id')->get() as $row) {
+            $names[] = $row['name'];
+        }
+
+        return $names;
+    }
+
+    private function abandon(Connection ...$connections): void
+    {
+        foreach ($connections as $connection) {
+            while ($connection->transactions()->inTransaction()) {
+                $connection->transactions()->rollback();
+            }
+        }
     }
 }

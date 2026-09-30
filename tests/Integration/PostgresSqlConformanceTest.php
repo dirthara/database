@@ -9,8 +9,10 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\Group;
 use Dirthara\Database\Connection\Driver\Driver;
 use Dirthara\Database\Connection\PdoConnection;
+use Dirthara\Database\Query\Grammar\QueryGrammar;
 use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Connection\Driver\PostgresSqlDriver;
+use Dirthara\Database\Query\Grammar\PostgresSqlQueryGrammar;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 
 #[Group('conformance')]
@@ -41,6 +43,11 @@ final class PostgresSqlConformanceTest extends TestCase
             password: $this->env('DIRTHARA_POSTGRES_PASSWORD', 'dirthara'),
             charset: $charset,
         );
+    }
+
+    protected function queryGrammar(): QueryGrammar
+    {
+        return new PostgresSqlQueryGrammar();
     }
 
     protected function usersTable(): string

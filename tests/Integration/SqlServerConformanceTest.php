@@ -7,8 +7,10 @@ namespace Dirthara\Database\Tests\Integration;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Group;
 use Dirthara\Database\Connection\Driver\Driver;
+use Dirthara\Database\Query\Grammar\QueryGrammar;
 use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Connection\Driver\SqlServerDriver;
+use Dirthara\Database\Query\Grammar\SqlServerQueryGrammar;
 use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
 use Dirthara\Database\Connection\Transaction\TransactionGrammar;
@@ -54,6 +56,11 @@ final class SqlServerConformanceTest extends TestCase
             // server presents a self-signed certificate. Never do this in production.
             dsn: ['TrustServerCertificate' => 'yes'],
         );
+    }
+
+    protected function queryGrammar(): QueryGrammar
+    {
+        return new SqlServerQueryGrammar();
     }
 
     protected function usersTable(): string

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Query\Grammar;
 
+use Dirthara\Database\Query\Clause\Lock;
 use Dirthara\Database\Query\Queries\SelectQuery;
+use Dirthara\Database\Exception\UnsupportedLockException;
 
 use function sprintf;
 
@@ -27,5 +29,13 @@ final class SQLiteQueryGrammar extends SqlQueryGrammar
         }
 
         return sprintf(' LIMIT %d OFFSET %d', $query->limit ?? self::UNLIMITED, $query->offset);
+    }
+
+    /**
+     * @throws UnsupportedLockException
+     */
+    protected function compileLock(Lock $lock): string
+    {
+        throw UnsupportedLockException::rowLocksUnsupported('SQLite', $lock);
     }
 }
