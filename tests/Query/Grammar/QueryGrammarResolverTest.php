@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Dirthara\Database\Tests\Query\Grammar;
 
 use ArrayIterator;
-use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Query\Grammar\MySqlQueryGrammar;
 use Dirthara\Database\Query\Grammar\SQLiteQueryGrammar;
+use Dirthara\Database\Exception\GrammarRegistryException;
 use Dirthara\Database\Query\Grammar\QueryGrammarResolver;
 use Dirthara\Database\Query\Grammar\SqlServerQueryGrammar;
 use Dirthara\Database\Query\Grammar\PostgresSqlQueryGrammar;
@@ -99,8 +99,8 @@ final class QueryGrammarResolverTest extends TestCase
     {
         $resolver = new QueryGrammarResolver([DriverName::SQLite->value => new SQLiteQueryGrammar()]);
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageIsOrContains('A query grammar is already registered for driver [sqlite].');
+        $this->expectException(GrammarRegistryException::class);
+        $this->expectExceptionMessageIsOrContains('A query grammar is already registered for driver "sqlite".');
 
         $resolver->register(DriverName::SQLite, new SQLiteQueryGrammar());
     }
@@ -111,8 +111,8 @@ final class QueryGrammarResolverTest extends TestCase
         $resolver = new QueryGrammarResolver();
         $resolver->register('sqlite', new SQLiteQueryGrammar());
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageIsOrContains('A query grammar is already registered for driver [sqlite].');
+        $this->expectException(GrammarRegistryException::class);
+        $this->expectExceptionMessageIsOrContains('A query grammar is already registered for driver "sqlite".');
 
         $resolver->register(DriverName::SQLite, new SQLiteQueryGrammar());
     }
@@ -130,8 +130,8 @@ final class QueryGrammarResolverTest extends TestCase
     #[Test]
     public function it_rejects_a_driver_the_constructor_is_given_twice(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageIsOrContains('A query grammar is already registered for driver [sqlite].');
+        $this->expectException(GrammarRegistryException::class);
+        $this->expectExceptionMessageIsOrContains('A query grammar is already registered for driver "sqlite".');
 
         new QueryGrammarResolver(self::duplicated());
     }
@@ -139,7 +139,7 @@ final class QueryGrammarResolverTest extends TestCase
     #[Test]
     public function it_registers_nothing_by_default(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(GrammarRegistryException::class);
 
         new QueryGrammarResolver()->resolve(DriverName::SQLite);
     }
@@ -149,8 +149,8 @@ final class QueryGrammarResolverTest extends TestCase
     {
         $resolver = new QueryGrammarResolver([DriverName::SQLite->value => new SQLiteQueryGrammar()]);
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageIsOrContains('No query grammar has been registered for driver [mysql].');
+        $this->expectException(GrammarRegistryException::class);
+        $this->expectExceptionMessageIsOrContains('No query grammar is registered for driver "mysql".');
 
         $resolver->resolve(DriverName::MySql);
     }
@@ -160,8 +160,8 @@ final class QueryGrammarResolverTest extends TestCase
     {
         $resolver = new QueryGrammarResolver([DriverName::SQLite->value => new SQLiteQueryGrammar()]);
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageIsOrContains('No query grammar has been registered for driver [mysql].');
+        $this->expectException(GrammarRegistryException::class);
+        $this->expectExceptionMessageIsOrContains('No query grammar is registered for driver "mysql".');
 
         $resolver->resolve('mysql');
     }

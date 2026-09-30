@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Query\Expression;
 
-use InvalidArgumentException;
+use Dirthara\Database\Exception\InvalidExpressionException;
 
 use function trim;
 use function explode;
-use function sprintf;
 use function strpbrk;
 
 final readonly class Identifier implements Expression
@@ -22,19 +21,16 @@ final readonly class Identifier implements Expression
         public string $name,
     ) {
         if (trim($this->name) === '') {
-            throw new InvalidArgumentException('An identifier cannot be empty.');
+            throw InvalidExpressionException::emptyIdentifier();
         }
 
         foreach (explode('.', $this->name) as $segment) {
             if ($segment === '') {
-                throw new InvalidArgumentException(sprintf('The identifier [%s] has an empty segment.', $this->name));
+                throw InvalidExpressionException::emptySegment($this->name);
             }
 
             if (strpbrk($segment, self::FORBIDDEN) !== false) {
-                throw new InvalidArgumentException(sprintf(
-                    'The identifier [%s] looks like SQL rather than a name; use a raw expression instead.',
-                    $this->name,
-                ));
+                throw InvalidExpressionException::sqlInIdentifier($this->name);
             }
         }
     }

@@ -34,6 +34,8 @@ names fixed by PHP, dependencies, or tools.
 
 ## Exceptions
 Read and follow https://github.com/dirthara/coding-standards/blob/main/docs/coding-standards/cs-7-exceptions-error-handling.md when creating or modifying exceptions.
+Every exception implements `Dirthara\Database\Exception\DatabaseException` and uses the 
+`HasExceptionContext` trait for its context.
 
 ## Documentation
 Read and follow https://github.com/dirthara/coding-standards/blob/main/docs/coding-standards/cs-6-documentation.md when writing the README or anything in `docs`.

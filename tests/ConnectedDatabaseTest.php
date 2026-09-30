@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace Dirthara\Database\Tests;
 
 use RuntimeException;
-use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\ConnectedDatabase;
 use Dirthara\Database\Connection\Connection;
+use Dirthara\Database\Exception\QueryException;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
 use Dirthara\Database\Query\Expression\RawExpression;
+use Dirthara\Database\Exception\InvalidQueryException;
 use Dirthara\Database\Tests\Fixtures\OpensConnections;
-use Dirthara\Database\Connection\Exceptions\QueryException;
 use Dirthara\Database\Tests\Fixtures\Query\RecordingGrammar;
 
 final class ConnectedDatabaseTest extends TestCase
@@ -81,7 +81,7 @@ final class ConnectedDatabaseTest extends TestCase
     #[Test]
     public function it_rejects_an_empty_table(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidQueryException::class);
         $this->expectExceptionMessageIsOrContains('A query table cannot be empty.');
 
         $this->database()->table('');

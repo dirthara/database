@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Connection\ValueObjects;
 
-use Dirthara\Database\Connection\Exceptions\ConnectionException;
+use Dirthara\Database\Exception\ConnectionException;
+use Dirthara\Database\Exception\InvalidConnectionConfigException;
 
 use function preg_match;
 
@@ -29,9 +30,7 @@ final readonly class DsnParameter
         string $value,
     ) {
         if (preg_match(self::PATTERN, $name) !== 1) {
-            throw new ConnectionException('The DSN parameter name must be an identifier.', context: [
-                'parameter' => $name,
-            ]);
+            throw InvalidConnectionConfigException::invalidDsnParameterName($name);
         }
 
         $this->parameter = new DsnValue($name, $value);

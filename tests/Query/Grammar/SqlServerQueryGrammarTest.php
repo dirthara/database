@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Tests\Query\Grammar;
 
-use LogicException;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Union;
@@ -24,6 +23,7 @@ use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Sql\AggregateFunction;
 use Dirthara\Database\Query\Sql\ComparisonOperator;
 use Dirthara\Database\Query\Expression\RawExpression;
+use Dirthara\Database\Exception\UnsupportedQueryException;
 use Dirthara\Database\Query\Grammar\SqlServerQueryGrammar;
 use Dirthara\Database\Tests\Fixtures\Query\BuildsSelectQueries;
 
@@ -370,7 +370,7 @@ final class SqlServerQueryGrammarTest extends TestCase
     #[Test]
     public function it_rejects_an_ordered_update(): void
     {
-        $this->expectException(LogicException::class);
+        $this->expectException(UnsupportedQueryException::class);
         $this->expectExceptionMessageIsOrContains('An ordered update query is not supported by this driver.');
 
         $this->grammar->compileUpdate(new UpdateQuery(
@@ -385,7 +385,7 @@ final class SqlServerQueryGrammarTest extends TestCase
     #[Test]
     public function it_rejects_an_ordered_delete(): void
     {
-        $this->expectException(LogicException::class);
+        $this->expectException(UnsupportedQueryException::class);
         $this->expectExceptionMessageIsOrContains('An ordered delete query is not supported by this driver.');
 
         $this->grammar->compileDelete(new DeleteQuery(

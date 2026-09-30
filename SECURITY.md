@@ -57,7 +57,7 @@ Out of scope:
 - Bugs in PHP, PDO, or a database driver extension. Report those upstream; if
   the package can defend against one, that is worth reporting here too.
 - Credentials leaked by an application logging its own configuration, or by
-  passing something other than `getContext()` to a logger.
+  passing something other than an exception's `context` to a logger.
 - A database misconfiguration the package faithfully connected to, such as an
   account with more privileges than it needs.
 
@@ -75,5 +75,8 @@ value can append a field of its own. A driver of your own should use the
 
 Exception context is written to logs. It carries the connection name, driver,
 host, port, database, operation, SQLSTATE, and the SQL — never a username, a
-password, a credential-bearing DSN, or a bound parameter value. Keep that split
-in your own drivers, middleware, and exceptions.
+password, a credential-bearing DSN, or a bound parameter value. Exception
+messages are written by the package and never copy a driver's message, which can
+quote the values of the row that failed; the driver's exception stays reachable
+as the previous exception. Keep that split in your own drivers, middleware, and
+exceptions.

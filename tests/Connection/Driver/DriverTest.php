@@ -12,12 +12,13 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Database\Connection\Driver\Driver;
 use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Connection\Driver\MySqlDriver;
+use Dirthara\Database\Exception\ConnectionException;
 use Dirthara\Database\Connection\Driver\SQLiteDriver;
 use Dirthara\Database\Connection\Driver\SqlServerDriver;
 use Dirthara\Database\Connection\Driver\PostgresSqlDriver;
 use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
-use Dirthara\Database\Connection\Exceptions\ConnectionException;
+use Dirthara\Database\Exception\InvalidConnectionConfigException;
 use Dirthara\Database\Connection\Transaction\StandardTransactionGrammar;
 use Dirthara\Database\Connection\Transaction\SqlServerTransactionGrammar;
 
@@ -48,11 +49,11 @@ final class DriverTest extends TestCase
         try {
             $driver->connect(new ConnectionConfig(driver: $name, name: 'primary', host: '   '));
 
-            self::fail('Expected a ConnectionException.');
-        } catch (ConnectionException $exception) {
+            self::fail('Expected a InvalidConnectionConfigException.');
+        } catch (InvalidConnectionConfigException $exception) {
             self::assertStringContainsString('requires a nonempty host', $exception->getMessage());
-            self::assertSame('primary', $exception->getContext()['connection']);
-            self::assertSame($name->value, $exception->getContext()['driver']);
+            self::assertSame('primary', $exception->context['connection']);
+            self::assertSame($name->value, $exception->context['driver']);
         }
     }
 
@@ -60,7 +61,7 @@ final class DriverTest extends TestCase
     #[DataProvider('hostDrivers')]
     public function it_rejects_a_host_that_would_inject_dsn_parameters(Driver $driver, DriverName $name): void
     {
-        $this->expectException(ConnectionException::class);
+        $this->expectException(InvalidConnectionConfigException::class);
         $this->expectExceptionMessageIsOrContains('must not contain a semicolon');
 
         $driver->connect(new ConnectionConfig(driver: $name, host: 'localhost;dbname=other'));
@@ -70,7 +71,7 @@ final class DriverTest extends TestCase
     #[DataProvider('hostDrivers')]
     public function it_rejects_a_database_that_would_inject_dsn_parameters(Driver $driver, DriverName $name): void
     {
-        $this->expectException(ConnectionException::class);
+        $this->expectException(InvalidConnectionConfigException::class);
         $this->expectExceptionMessageIsOrContains('must not contain a semicolon');
 
         $driver->connect(new ConnectionConfig(driver: $name, host: 'localhost', database: 'app;Trusted=yes'));
@@ -79,7 +80,7 @@ final class DriverTest extends TestCase
     #[Test]
     public function it_rejects_a_charset_that_is_not_an_identifier(): void
     {
-        $this->expectException(ConnectionException::class);
+        $this->expectException(InvalidConnectionConfigException::class);
         $this->expectExceptionMessageIsOrContains('not a valid identifier');
 
         new MySqlDriver(new StandardTransactionGrammar(new SavepointPrefix()))->connect(new ConnectionConfig(
@@ -98,18 +99,18 @@ final class DriverTest extends TestCase
                 name: 'cache',
             ));
 
-            self::fail('Expected a ConnectionException.');
-        } catch (ConnectionException $exception) {
-            self::assertSame('SQLite requires an explicit database value.', $exception->getMessage());
-            self::assertSame('cache', $exception->getContext()['connection']);
+            self::fail('Expected a InvalidConnectionConfigException.');
+        } catch (InvalidConnectionConfigException $exception) {
+            self::assertSame('The SQLite driver requires an explicit database.', $exception->getMessage());
+            self::assertSame('cache', $exception->context['connection']);
         }
     }
 
     #[Test]
     public function sqlite_rejects_a_charset_it_cannot_honour(): void
     {
-        $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessageIsOrContains('SQLite does not support a configurable charset.');
+        $this->expectException(InvalidConnectionConfigException::class);
+        $this->expectExceptionMessageIsOrContains('The SQLite driver does not support a configurable charset.');
 
         new SQLiteDriver(new StandardTransactionGrammar(new SavepointPrefix()))->connect(new ConnectionConfig(
             driver: DriverName::SQLite,
@@ -121,8 +122,8 @@ final class DriverTest extends TestCase
     #[Test]
     public function sql_server_rejects_a_charset_it_cannot_honour(): void
     {
-        $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessageIsOrContains('SqlServer does not support a configurable charset.');
+        $this->expectException(InvalidConnectionConfigException::class);
+        $this->expectExceptionMessageIsOrContains('The SqlServer driver does not support a configurable charset.');
 
         new SqlServerDriver(new SqlServerTransactionGrammar(new SavepointPrefix()))->connect(new ConnectionConfig(
             driver: DriverName::SqlServer,
@@ -203,9 +204,9 @@ final class DriverTest extends TestCase
 
             self::fail('Expected a ConnectionException.');
         } catch (ConnectionException $exception) {
-            self::assertSame(Operation::Connect->value, $exception->getContext()['operation']);
-            self::assertSame('app', $exception->getContext()['database']);
-            self::assertSame(5000, $exception->getContext()['port']);
+            self::assertSame(Operation::Connect->value, $exception->context['operation']);
+            self::assertSame('app', $exception->context['database']);
+            self::assertSame(5000, $exception->context['port']);
         }
     }
 
@@ -227,11 +228,11 @@ final class DriverTest extends TestCase
                 'Trust Server Certificate' => 'yes',
             ]));
 
-            self::fail('Expected a ConnectionException.');
-        } catch (ConnectionException $exception) {
+            self::fail('Expected a InvalidConnectionConfigException.');
+        } catch (InvalidConnectionConfigException $exception) {
             self::assertStringContainsString('must be an identifier', $exception->getMessage());
-            self::assertSame('Trust Server Certificate', $exception->getContext()['parameter']);
-            self::assertSame('primary', $exception->getContext()['connection']);
+            self::assertSame('Trust Server Certificate', $exception->context['parameter']);
+            self::assertSame('primary', $exception->context['connection']);
         }
     }
 
@@ -239,7 +240,7 @@ final class DriverTest extends TestCase
     #[DataProvider('hostDrivers')]
     public function it_rejects_a_dsn_parameter_that_would_inject_another(Driver $driver, DriverName $name): void
     {
-        $this->expectException(ConnectionException::class);
+        $this->expectException(InvalidConnectionConfigException::class);
         $this->expectExceptionMessageIsOrContains('must not contain a semicolon');
 
         $driver->connect(new ConnectionConfig(driver: $name, host: 'db.invalid', dsn: [
@@ -250,8 +251,8 @@ final class DriverTest extends TestCase
     #[Test]
     public function sqlite_rejects_dsn_parameters_it_has_nowhere_to_put(): void
     {
-        $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessageIsOrContains('SQLite does not support driver-specific DSN parameters.');
+        $this->expectException(InvalidConnectionConfigException::class);
+        $this->expectExceptionMessageIsOrContains('The SQLite driver does not support driver-specific DSN parameters.');
 
         new SQLiteDriver(new StandardTransactionGrammar(new SavepointPrefix()))->connect(new ConnectionConfig(
             driver: DriverName::SQLite,

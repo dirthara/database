@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Connection;
 
+use Dirthara\Database\Exception\ConnectionException;
+use Dirthara\Database\Exception\TransactionException;
+use Dirthara\Database\Exception\ConnectionRegistryException;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
-use Dirthara\Database\Connection\Exceptions\ConnectionException;
-use Dirthara\Database\Connection\Exceptions\TransactionException;
 
 use function array_keys;
 use function array_key_exists;
@@ -33,9 +34,7 @@ final class ConnectionManager
 
         foreach ($configs as $config) {
             if (array_key_exists($config->name, $registeredConfigs)) {
-                throw new ConnectionException('The database connection is configured more than once.', context: [
-                    'connection' => $config->name,
-                ]);
+                throw ConnectionRegistryException::duplicateConnection($config->name);
             }
 
             $registeredConfigs[$config->name] = $config;
@@ -96,10 +95,10 @@ final class ConnectionManager
     private function config(string $name): ConnectionConfig
     {
         return (
-            $this->configs[$name] ?? throw new ConnectionException('The requested database connection is not configured.', context: [
-                'connection' => $name,
-                'configured' => array_keys($this->configs),
-            ])
+            $this->configs[$name] ?? throw ConnectionRegistryException::unknownConnection(
+                $name,
+                array_keys($this->configs),
+            )
         );
     }
 }

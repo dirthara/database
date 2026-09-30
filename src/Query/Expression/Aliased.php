@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Query\Expression;
 
-use InvalidArgumentException;
+use Dirthara\Database\Exception\InvalidExpressionException;
 
 use function trim;
 
@@ -15,7 +15,7 @@ final readonly class Aliased implements Expression
         public string $alias,
     ) {
         if (trim($this->alias) === '') {
-            throw new InvalidArgumentException('An alias cannot be empty.');
+            throw InvalidExpressionException::emptyAlias();
         }
     }
 }

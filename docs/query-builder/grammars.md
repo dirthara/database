@@ -19,7 +19,7 @@ compilers; each driver overrides only where its database differs.
 | `SqlServerQueryGrammar` | `[name]` | Paging, ordering, mutation limit, existence checks. |
 
 A grammar never guesses. When a clause cannot be expressed on that database it
-throws a `LogicException` while compiling, so the query fails where it was built
+throws an `UnsupportedQueryException` while compiling, so the query fails where it was built
 rather than producing SQL that means something else.
 
 ## Quoting

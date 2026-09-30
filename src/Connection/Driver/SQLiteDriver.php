@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Dirthara\Database\Connection\Driver;
 
 use PDO;
+use Dirthara\Database\Exception\ConnectionException;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
-use Dirthara\Database\Connection\Exceptions\ConnectionException;
+use Dirthara\Database\Exception\InvalidConnectionConfigException;
 
 final class SQLiteDriver extends PdoDriver
 {
@@ -26,10 +27,7 @@ final class SQLiteDriver extends PdoDriver
         $database = $config->database;
 
         if ($database === null) {
-            throw new ConnectionException(
-                'SQLite requires an explicit database value.',
-                context: $this->context($config),
-            );
+            throw InvalidConnectionConfigException::missingDatabase($config);
         }
 
         return new PDO('sqlite:' . $database, options: $this->options($config));

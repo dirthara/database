@@ -45,7 +45,7 @@ $drivers = [
 ```
 
 Register only the drivers you use. A driver you never register costs you a
-`ConnectionException` when a config asks for it, not a silent fallback.
+`ConnectionRegistryException` when a config asks for it, not a silent fallback.
 
 ## `DriverName`
 
@@ -103,8 +103,8 @@ path never quietly becomes an in-memory database whose writes disappear.
 Three options are not uniform across drivers.
 
 **`charset`** is applied where the database actually accepts it: through the DSN
-on MySQL, through `client_encoding` on PostgreSQL. SQLite and SQL Server throw a
-`ConnectionException` instead of accepting a value they would ignore — SQLite
+on MySQL, through `client_encoding` on PostgreSQL. SQLite and SQL Server throw an
+`InvalidConnectionConfigException` instead of accepting a value they would ignore — SQLite
 stores text as UTF-8 regardless, and the SQL Server DSN has no equivalent
 field. A rejected charset is a configuration mistake worth hearing about.
 
@@ -155,4 +155,6 @@ The protected helpers available to a subclass:
 
 Only `createConnection()` needs to run; `connect()` already catches
 `PDOException` around it and rethrows it as a `ConnectionException` carrying the
-message, SQLSTATE, and driver error code.
+SQLSTATE and driver error code, with the `PDOException` as its previous exception.
+The driver's own message is not copied, because it can quote configuration or
+data. The validating helpers throw an `InvalidConnectionConfigException`.

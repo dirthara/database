@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Dirthara\Database\Tests\Query;
 
 use ArgumentCountError;
-use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Query\Clause\Where;
@@ -22,7 +21,9 @@ use Dirthara\Database\Query\Sql\BooleanOperator;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Sql\ComparisonOperator;
 use Dirthara\Database\Query\Expression\RawExpression;
+use Dirthara\Database\Exception\InvalidQueryException;
 use Dirthara\Database\Tests\Fixtures\Query\BuildsQueries;
+use Dirthara\Database\Exception\InvalidExpressionException;
 
 final class QueryBuilderWhereTest extends TestCase
 {
@@ -94,9 +95,9 @@ final class QueryBuilderWhereTest extends TestCase
     #[Test]
     public function it_rejects_an_unknown_operator(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidExpressionException::class);
         $this->expectExceptionMessageIsOrContains(
-            'The operator [equals] cannot compare two values; expected one of =, !=, >, >=, <, <=, LIKE, NOT LIKE.',
+            'The operator "equals" cannot compare two values; expected one of =, !=, >, >=, <, <=, LIKE, NOT LIKE.',
         );
 
         $this->builder()->where('name', 'equals', 'Ada');
@@ -105,9 +106,9 @@ final class QueryBuilderWhereTest extends TestCase
     #[Test]
     public function it_rejects_an_operator_that_needs_its_own_clause(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidExpressionException::class);
         $this->expectExceptionMessageIsOrContains(
-            'The operator [IN] cannot compare two values; expected one of =, !=, >, >=, <, <=, LIKE, NOT LIKE.',
+            'The operator "IN" cannot compare two values; expected one of =, !=, >, >=, <, <=, LIKE, NOT LIKE.',
         );
 
         $this->builder()->where('id', 'IN', [1, 2]);
@@ -158,8 +159,8 @@ final class QueryBuilderWhereTest extends TestCase
     #[Test]
     public function it_rejects_null_for_any_other_operator(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageIsOrContains('Operator [GreaterThan (>)] cannot be used with NULL.');
+        $this->expectException(InvalidQueryException::class);
+        $this->expectExceptionMessageIsOrContains('The operator "GreaterThan (>)" cannot be used with NULL.');
 
         $this->builder()->where('age', '>', null);
     }

@@ -8,9 +8,9 @@ use PDOStatement;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Connection\Connection;
+use Dirthara\Database\Exception\ResultException;
 use Dirthara\Database\Connection\Result\PdoResult;
 use Dirthara\Database\Tests\Fixtures\OpensConnections;
-use Dirthara\Database\Connection\Exceptions\ResultException;
 
 final class PdoResultTest extends TestCase
 {
@@ -74,7 +74,7 @@ final class PdoResultTest extends TestCase
             self::fail('Expected a ResultException.');
         } catch (ResultException $exception) {
             self::assertSame('The result set has no column "missing".', $exception->getMessage());
-            self::assertSame(['name'], $exception->getContext()['columns']);
+            self::assertSame(['name'], $exception->context['columns']);
         }
     }
 
@@ -137,8 +137,8 @@ final class PdoResultTest extends TestCase
             self::fail('Expected a ResultException.');
         } catch (ResultException $exception) {
             self::assertStringContainsString('does not expose column metadata', $exception->getMessage());
-            self::assertSame('name', $exception->getContext()['column']);
-            self::assertSame('column', $exception->getContext()['operation']);
+            self::assertSame('name', $exception->context['column']);
+            self::assertSame('column', $exception->context['operation']);
         }
     }
 }

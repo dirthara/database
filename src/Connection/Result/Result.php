@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Connection\Result;
 
-use Dirthara\Database\Connection\Exceptions\ResultException;
+use Dirthara\Database\Exception\ResultException;
 
 interface Result
 {

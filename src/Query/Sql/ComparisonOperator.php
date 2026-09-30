@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Query\Sql;
 
-use InvalidArgumentException;
+use Dirthara\Database\Exception\InvalidExpressionException;
 
 use function trim;
-use function implode;
-use function sprintf;
 use function array_map;
 use function strtoupper;
 use function preg_replace;
@@ -30,7 +28,7 @@ enum ComparisonOperator: string
     private const array ALIASES = ['<>' => '!='];
 
     /**
-     * @throws InvalidArgumentException
+     * @throws InvalidExpressionException
      */
     public static function parse(string|self $operator): self
     {
@@ -43,10 +41,9 @@ enum ComparisonOperator: string
         $name = self::ALIASES[$name] ?? $name;
 
         return (
-            self::tryFrom($name) ?? throw new InvalidArgumentException(sprintf(
-                'The operator [%s] cannot compare two values; expected one of %s.',
-                $operator,
-                implode(', ', array_map(static fn(self $case): string => $case->value, self::cases())),
+            self::tryFrom($name) ?? throw InvalidExpressionException::unknownOperator($operator, array_map(
+                static fn(self $case): string => $case->value,
+                self::cases(),
             ))
         );
     }

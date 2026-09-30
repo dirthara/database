@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Query\Grammar;
 
-use LogicException;
-use InvalidArgumentException;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Clause\WhereIn;
@@ -27,6 +25,8 @@ use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
 use Dirthara\Database\Query\Sql\AggregateFunction;
 use Dirthara\Database\Query\Expression\RawExpression;
+use Dirthara\Database\Exception\InvalidQueryException;
+use Dirthara\Database\Exception\UnsupportedQueryException;
 
 use function explode;
 use function implode;
@@ -164,7 +164,7 @@ abstract class SqlQueryGrammar implements QueryGrammar
     public function compileUpdate(UpdateQuery $query): CompiledQuery
     {
         if ($query->values === []) {
-            throw new InvalidArgumentException('An update needs at least one value.');
+            throw InvalidQueryException::emptyUpdate();
         }
 
         $bindings = [];
@@ -337,7 +337,7 @@ abstract class SqlQueryGrammar implements QueryGrammar
             return '';
         }
 
-        throw new LogicException(sprintf('An ordered %s query is not supported by this driver.', $operation));
+        throw UnsupportedQueryException::orderedMutation($operation);
     }
 
     /**
@@ -349,7 +349,7 @@ abstract class SqlQueryGrammar implements QueryGrammar
             return ['', ''];
         }
 
-        throw new LogicException(sprintf('A limited %s query is not supported by this driver.', $operation));
+        throw UnsupportedQueryException::limitedMutation($operation);
     }
 
     /**
@@ -407,7 +407,7 @@ abstract class SqlQueryGrammar implements QueryGrammar
             $where instanceof NestedWhere => sprintf('(%s)', $this->compileWheres($where->wheres, $bindings)),
             $where instanceof RawWhere => $this->compileRawWhere($where, $bindings),
             $where instanceof WhereExists => $this->compileWhereExists($where, $bindings),
-            default => throw new LogicException(sprintf('Unsupported where clause [%s].', $where::class)),
+            default => throw UnsupportedQueryException::unknownWhere($where::class),
         };
     }
 
@@ -478,7 +478,7 @@ abstract class SqlQueryGrammar implements QueryGrammar
             );
         }
 
-        throw new LogicException(sprintf('Unsupported expression [%s].', $expression::class));
+        throw UnsupportedQueryException::unknownExpression($expression::class);
     }
 
     private function quoteSegments(string $name): string
@@ -578,7 +578,7 @@ abstract class SqlQueryGrammar implements QueryGrammar
         $rows = $query->rows;
 
         if ($rows === []) {
-            throw new InvalidArgumentException('An insert needs at least one row.');
+            throw InvalidQueryException::emptyInsert();
         }
 
         if (!array_is_list($rows)) {
@@ -590,12 +590,12 @@ abstract class SqlQueryGrammar implements QueryGrammar
         $columns = array_keys($rows[0]);
 
         if ($columns === []) {
-            throw new InvalidArgumentException('An insert needs at least one column.');
+            throw InvalidQueryException::insertWithoutColumns();
         }
 
         foreach ($rows as $row) {
             if (array_keys($row) !== $columns) {
-                throw new InvalidArgumentException('Every inserted row needs the same columns in the same order.');
+                throw InvalidQueryException::mismatchedInsertColumns();
             }
         }
 
@@ -608,9 +608,6 @@ abstract class SqlQueryGrammar implements QueryGrammar
             return $value;
         }
 
-        throw new InvalidArgumentException(sprintf(
-            'A query binding must be scalar or null, got [%s].',
-            get_debug_type($value),
-        ));
+        throw InvalidQueryException::invalidBinding(get_debug_type($value));
     }
 }

@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Connection\ValueObjects;
 
-use Dirthara\Database\Connection\Exceptions\ConnectionException;
+use Dirthara\Database\Exception\ConnectionException;
+use Dirthara\Database\Exception\InvalidConnectionConfigException;
 
 use function preg_match;
 
@@ -19,9 +20,7 @@ final readonly class Charset
         public string $value,
     ) {
         if (preg_match(self::PATTERN, $value) !== 1) {
-            throw new ConnectionException('The configured charset is not a valid identifier.', context: [
-                'charset' => $value,
-            ]);
+            throw InvalidConnectionConfigException::invalidCharset($value);
         }
     }
 }

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Connection\ValueObjects;
 
-use Dirthara\Database\Connection\Exceptions\ConnectionException;
+use Dirthara\Database\Exception\ConnectionException;
+use Dirthara\Database\Exception\InvalidConnectionConfigException;
 
-use function sprintf;
 use function str_contains;
 
 final readonly class DsnValue
@@ -19,10 +19,7 @@ final readonly class DsnValue
         public string $value,
     ) {
         if (str_contains($value, ';')) {
-            throw new ConnectionException(sprintf('The configured %s must not contain a semicolon.', $field), context: [
-                'field' => $field,
-                'value' => $value,
-            ]);
+            throw InvalidConnectionConfigException::semicolonInDsnValue($field);
         }
     }
 }

@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
-use Dirthara\Database\Connection\Exceptions\TransactionException;
+use Dirthara\Database\Exception\InvalidConnectionConfigException;
 
 use function str_repeat;
 
@@ -59,7 +59,7 @@ final class SavepointPrefixTest extends TestCase
     #[DataProvider('rejected')]
     public function it_rejects_anything_else(string $value): void
     {
-        $this->expectException(TransactionException::class);
+        $this->expectException(InvalidConnectionConfigException::class);
         $this->expectExceptionMessageIsOrContains('must start with a letter or underscore');
 
         new SavepointPrefix($value);
@@ -68,7 +68,7 @@ final class SavepointPrefixTest extends TestCase
     #[Test]
     public function it_rejects_a_prefix_over_the_length_limit(): void
     {
-        $this->expectException(TransactionException::class);
+        $this->expectException(InvalidConnectionConfigException::class);
         $this->expectExceptionMessageIsOrContains('must not exceed 24 characters');
 
         new SavepointPrefix(str_repeat('a', times: 25));
@@ -80,9 +80,9 @@ final class SavepointPrefixTest extends TestCase
         try {
             new SavepointPrefix('my-app');
 
-            self::fail('Expected a TransactionException.');
-        } catch (TransactionException $exception) {
-            self::assertSame('my-app', $exception->getContext()['prefix']);
+            self::fail('Expected a InvalidConnectionConfigException.');
+        } catch (InvalidConnectionConfigException $exception) {
+            self::assertSame('my-app', $exception->context['prefix']);
         }
     }
 }

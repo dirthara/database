@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Dirthara\Database\Connection;
 
 use Dirthara\Database\Connection\Result\Result;
+use Dirthara\Database\Exception\QueryException;
 use Dirthara\Database\Connection\Driver\DriverName;
-use Dirthara\Database\Connection\Exceptions\QueryException;
-use Dirthara\Database\Connection\Exceptions\ConnectionException;
+use Dirthara\Database\Exception\ConnectionException;
+use Dirthara\Database\Exception\TransactionException;
 use Dirthara\Database\Connection\Transaction\TransactionManager;
-use Dirthara\Database\Connection\Exceptions\TransactionException;
 
 interface Connection
 {

@@ -8,15 +8,15 @@ use PDO;
 use PDOException;
 use Dirthara\Database\Connection\Operation;
 use Dirthara\Database\Connection\Pdo\PdoError;
+use Dirthara\Database\Exception\ConnectionException;
 use Dirthara\Database\Connection\ValueObjects\Charset;
 use Dirthara\Database\Connection\ValueObjects\DsnValue;
 use Dirthara\Database\Connection\ValueObjects\DsnParameter;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
-use Dirthara\Database\Connection\Exceptions\ConnectionException;
 use Dirthara\Database\Connection\Transaction\TransactionGrammar;
+use Dirthara\Database\Exception\InvalidConnectionConfigException;
 
 use function trim;
-use function sprintf;
 use function array_merge;
 use function array_replace;
 
@@ -47,12 +47,7 @@ abstract class PdoDriver implements Driver
         try {
             return $this->createConnection($config);
         } catch (PDOException $exception) {
-            throw new ConnectionException(
-                message: $exception->getMessage(),
-                code: PdoError::code($exception),
-                previous: $exception,
-                context: $this->context($config, cause: $exception),
-            );
+            throw ConnectionException::connectFailed($config, $exception);
         }
     }
 
@@ -77,7 +72,11 @@ abstract class PdoDriver implements Driver
         Operation $operation = Operation::Connect,
         ?PDOException $cause = null,
     ): array {
-        return array_merge($config->diagnostics(), ['operation' => $operation->value], PdoError::describe($cause));
+        return array_merge(
+            $config->diagnostics(),
+            ['operation' => $operation->value],
+            $cause === null ? [] : PdoError::describe($cause),
+        );
     }
 
     /**
@@ -88,10 +87,7 @@ abstract class PdoDriver implements Driver
         $host = $config->host === null ? '' : trim($config->host);
 
         if ($host === '') {
-            throw new ConnectionException(
-                sprintf('%s requires a nonempty host.', $this->name()->name),
-                context: $this->context($config),
-            );
+            throw InvalidConnectionConfigException::missingHost($config);
         }
 
         return $this->dsnValue('host', $host, $config);
@@ -122,7 +118,7 @@ abstract class PdoDriver implements Driver
 
         try {
             return new Charset($config->charset);
-        } catch (ConnectionException $exception) {
+        } catch (InvalidConnectionConfigException $exception) {
             throw $exception->addContext($this->context($config));
         }
     }
@@ -139,7 +135,7 @@ abstract class PdoDriver implements Driver
         foreach ($config->dsn as $name => $value) {
             try {
                 $parameter = new DsnParameter($name, (string) $value);
-            } catch (ConnectionException $exception) {
+            } catch (InvalidConnectionConfigException $exception) {
                 throw $exception->addContext($this->context($config));
             }
 
@@ -155,10 +151,7 @@ abstract class PdoDriver implements Driver
     protected function rejectDsnParameters(ConnectionConfig $config): void
     {
         if ($config->dsn !== []) {
-            throw new ConnectionException(
-                sprintf('%s does not support driver-specific DSN parameters.', $this->name()->name),
-                context: $this->context($config),
-            );
+            throw InvalidConnectionConfigException::unsupportedDsnParameters($config);
         }
     }
 
@@ -168,10 +161,7 @@ abstract class PdoDriver implements Driver
     protected function rejectCharset(ConnectionConfig $config): void
     {
         if ($config->charset !== null) {
-            throw new ConnectionException(
-                sprintf('%s does not support a configurable charset.', $this->name()->name),
-                context: $this->context($config),
-            );
+            throw InvalidConnectionConfigException::unsupportedCharset($config);
         }
     }
 
@@ -182,7 +172,7 @@ abstract class PdoDriver implements Driver
     {
         try {
             return new DsnValue($field, $value);
-        } catch (ConnectionException $exception) {
+        } catch (InvalidConnectionConfigException $exception) {
             throw $exception->addContext($this->context($config));
         }
     }

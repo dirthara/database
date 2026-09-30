@@ -12,14 +12,14 @@ use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Connection\Operation;
 use Dirthara\Database\Connection\Driver\Driver;
 use Dirthara\Database\Connection\PdoConnection;
+use Dirthara\Database\Exception\QueryException;
 use Dirthara\Database\Connection\Driver\DriverName;
+use Dirthara\Database\Exception\ConnectionException;
+use Dirthara\Database\Exception\TransactionException;
 use Dirthara\Database\Tests\Fixtures\OpensConnections;
-use Dirthara\Database\Connection\Exceptions\QueryException;
 use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
-use Dirthara\Database\Connection\Exceptions\ConnectionException;
 use Dirthara\Database\Connection\Transaction\TransactionGrammar;
-use Dirthara\Database\Connection\Exceptions\TransactionException;
 use Dirthara\Database\Connection\Transaction\StandardTransactionGrammar;
 
 use function json_encode;
@@ -88,7 +88,7 @@ final class PdoConnectionTest extends TestCase
 
             self::fail('Expected a QueryException.');
         } catch (QueryException $exception) {
-            $context = $exception->getContext();
+            $context = $exception->context;
 
             self::assertSame('SELECT * FROM missing_table', $context['query']);
             self::assertSame('execute', $context['operation']);
@@ -96,6 +96,27 @@ final class PdoConnectionTest extends TestCase
             self::assertSame('sqlite', $context['driver']);
             self::assertSame('HY000', $context['sqlstate']);
             self::assertSame(1, $context['driver_code']);
+        }
+    }
+
+    #[Test]
+    public function it_keeps_the_values_a_driver_message_quotes_out_of_the_exception(): void
+    {
+        $connection = $this->sqlite();
+        $connection->execute('CREATE TABLE accounts (email TEXT PRIMARY KEY)');
+        $connection->execute('INSERT INTO accounts (email) VALUES (?)', ['ada@example.com']);
+
+        try {
+            $connection->execute("INSERT INTO accounts (email) VALUES ('ada@example.com')");
+
+            self::fail('Expected a QueryException.');
+        } catch (QueryException $exception) {
+            self::assertSame(
+                'Unable to execute a query on connection "testing" (SQLSTATE 23000).',
+                $exception->getMessage(),
+            );
+            self::assertStringContainsString('accounts.email', $exception->getPrevious()?->getMessage() ?? '');
+            self::assertSame('23000', $exception->context['sqlstate']);
         }
     }
 
@@ -109,7 +130,7 @@ final class PdoConnectionTest extends TestCase
 
             self::fail('Expected a QueryException.');
         } catch (QueryException $exception) {
-            self::assertStringNotContainsString('hunter2', json_encode($exception->getContext(), JSON_THROW_ON_ERROR));
+            self::assertStringNotContainsString('hunter2', json_encode($exception->context, JSON_THROW_ON_ERROR));
         }
     }
 
@@ -123,8 +144,11 @@ final class PdoConnectionTest extends TestCase
 
             self::fail('Expected a QueryException.');
         } catch (QueryException $exception) {
-            self::assertSame('Failed to prepare the query.', $exception->getMessage());
-            self::assertSame(Operation::Prepare->value, $exception->getContext()['operation']);
+            self::assertSame(
+                'The database refused to prepare a query on connection "testing".',
+                $exception->getMessage(),
+            );
+            self::assertSame(Operation::Prepare->value, $exception->context['operation']);
         }
     }
 
@@ -141,8 +165,11 @@ final class PdoConnectionTest extends TestCase
 
             self::fail('Expected a QueryException.');
         } catch (QueryException $exception) {
-            self::assertSame('Failed to execute the query.', $exception->getMessage());
-            self::assertSame('execute', $exception->getContext()['operation']);
+            self::assertSame(
+                'The database refused to execute a query on connection "testing".',
+                $exception->getMessage(),
+            );
+            self::assertSame('execute', $exception->context['operation']);
         }
     }
 
@@ -202,8 +229,11 @@ final class PdoConnectionTest extends TestCase
 
             self::fail('Expected a TransactionException.');
         } catch (TransactionException $exception) {
-            self::assertSame('Cannot disconnect while a transaction is active.', $exception->getMessage());
-            self::assertSame('disconnect', $exception->getContext()['operation']);
+            self::assertSame(
+                'Unable to disconnect connection "testing" while a transaction is active.',
+                $exception->getMessage(),
+            );
+            self::assertSame('disconnect', $exception->context['operation']);
         }
 
         self::assertTrue($connection->transactions()->inTransaction());
@@ -298,9 +328,10 @@ final class PdoConnectionTest extends TestCase
 
             self::fail('Expected a QueryException.');
         } catch (QueryException $exception) {
-            self::assertSame('the connection is gone', $exception->getMessage());
-            self::assertSame(Operation::LastInsertId->value, $exception->getContext()['operation']);
-            self::assertSame('testing', $exception->getContext()['connection']);
+            self::assertSame('Unable to read the last inserted id on connection "testing".', $exception->getMessage());
+            self::assertInstanceOf(PDOException::class, $exception->getPrevious());
+            self::assertSame(Operation::LastInsertId->value, $exception->context['operation']);
+            self::assertSame('testing', $exception->context['connection']);
         }
     }
 }

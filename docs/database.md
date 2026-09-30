@@ -110,8 +110,8 @@ The constructor takes any `iterable`, so a container can hand it a lazy list.
 
 | Situation | Result |
 | --- | --- |
-| Driver registered twice | `InvalidArgumentException` — a grammar is already registered for that driver. |
-| Driver never registered | `InvalidArgumentException` naming the driver, thrown by `table()` or `using()`. |
+| Driver registered twice | `GrammarRegistryException` — a grammar is already registered for that driver. |
+| Driver never registered | `GrammarRegistryException` naming the driver, thrown by `table()` or `using()`. |
 
 Registering twice throws rather than overwriting, matching
 [`ConnectionFactory`](connections/connection-manager.md#the-factory)'s behaviour

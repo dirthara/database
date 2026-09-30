@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Dirthara\Database\Connection\Transaction;
 
 use Throwable;
-use Dirthara\Database\Connection\Exceptions\TransactionException;
+use Dirthara\Database\Exception\TransactionException;
 
 interface TransactionManager
 {

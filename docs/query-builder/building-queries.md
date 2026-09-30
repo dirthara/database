@@ -94,7 +94,7 @@ clauses in the table above, and passing one as an operator throws:
 
 ```php
 $database->table('users')->where('id', 'IN', [1, 2]);
-// InvalidArgumentException: The operator [IN] cannot compare two values;
+// InvalidExpressionException: The operator "IN" cannot compare two values;
 // expected one of =, !=, >, >=, <, <=, LIKE, NOT LIKE.
 ```
 
@@ -123,7 +123,7 @@ that cannot match:
 
 ```php
 $database->table('users')->where('age', '>', null);
-// InvalidArgumentException: Operator [GreaterThan (>)] cannot be used with NULL.
+// InvalidQueryException: The operator "GreaterThan (>)" cannot be used with NULL.
 ```
 
 :::tip
@@ -327,7 +327,7 @@ An operand that carries its own is refused:
 
 ```php
 $database->table('users')->union($database->table('archived')->orderBy('name'));
-// LogicException: A union operand cannot order or page itself; order and page the union instead.
+// InvalidQueryException: A union operand cannot order or page itself; order and page the union instead.
 ```
 
 :::note
@@ -412,10 +412,10 @@ afterwards.
 
 ```php
 $database->table('users')->chunk(100, $callback);
-// LogicException: A chunked query needs an ordering, or its pages can skip and repeat rows.
+// InvalidQueryException: A chunked query needs an ordering, or its pages can skip and repeat rows.
 
 $database->table('users')->orderBy('id')->limit(10)->chunk(100, $callback);
-// LogicException: A chunked query cannot limit or page itself; chunk() pages it.
+// InvalidQueryException: A chunked query cannot limit or page itself; chunk() pages it.
 ```
 
 The ordering is not a formality. Without one the database may return rows in a
@@ -477,7 +477,7 @@ rather than one value:
 
 ```php
 $database->table('orders')->groupBy('status')->sum('amount');
-// LogicException: A grouped query has one SUM per group; add it to the selection instead.
+// InvalidQueryException: A grouped query has one SUM per group; add it to the selection instead.
 ```
 
 Select it instead, and read the rows:

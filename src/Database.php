@@ -8,11 +8,11 @@ use Throwable;
 use Dirthara\Database\Query\QueryBuilder;
 use Dirthara\Database\Connection\Connection;
 use Dirthara\Database\Connection\Result\Result;
+use Dirthara\Database\Exception\QueryException;
 use Dirthara\Database\Query\Expression\Expression;
 use Dirthara\Database\Connection\ConnectionManager;
+use Dirthara\Database\Exception\ConnectionException;
 use Dirthara\Database\Query\Grammar\QueryGrammarResolver;
-use Dirthara\Database\Connection\Exceptions\QueryException;
-use Dirthara\Database\Connection\Exceptions\ConnectionException;
 
 final readonly class Database
 {

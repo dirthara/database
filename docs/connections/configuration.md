@@ -49,8 +49,8 @@ config only mentions what it actually needs.
 ## The charset option
 
 `charset` accepts an identifier only: letters, digits, hyphens, and underscores,
-matching `/^[A-Za-z0-9_-]+$/`. Anything else throws a `ConnectionException`
-before it can reach a DSN or a `SET` statement. That is deliberate — the value
+matching `/^[A-Za-z0-9_-]+$/`. Anything else throws an
+`InvalidConnectionConfigException` before it can reach a DSN or a `SET` statement. That is deliberate — the value
 ends up in SQL that cannot be parameterised.
 
 ## The options array
@@ -114,8 +114,8 @@ assembled by concatenation and neither half can be a bound parameter:
 - The value must not contain a semicolon, so it cannot append a field of its
   own. `'no;Database=other'` is refused.
 
-Either violation throws a `ConnectionException` carrying the connection's
-diagnostics. SQLite has no `Key=Value` DSN, so it refuses any parameter rather
+Either violation throws an `InvalidConnectionConfigException` carrying the
+connection's diagnostics. The rejected value itself is left out of the context. SQLite has no `Key=Value` DSN, so it refuses any parameter rather
 than accepting and ignoring it.
 
 :::caution

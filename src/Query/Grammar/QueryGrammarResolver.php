@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Query\Grammar;
 
-use InvalidArgumentException;
 use Dirthara\Database\Connection\Driver\DriverName;
+use Dirthara\Database\Exception\GrammarRegistryException;
 
-use function sprintf;
 use function array_key_exists;
 
 final class QueryGrammarResolver
@@ -20,7 +19,7 @@ final class QueryGrammarResolver
     /**
      * @param iterable<string, QueryGrammar> $grammars
      *
-     * @throws InvalidArgumentException
+     * @throws GrammarRegistryException
      */
     public function __construct(iterable $grammars = [])
     {
@@ -30,35 +29,27 @@ final class QueryGrammarResolver
     }
 
     /**
-     * @throws InvalidArgumentException
+     * @throws GrammarRegistryException
      */
     public function register(string|DriverName $driver, QueryGrammar $grammar): void
     {
         $name = $this->name($driver);
 
         if (array_key_exists($name, $this->grammars)) {
-            throw new InvalidArgumentException(sprintf(
-                'A query grammar is already registered for driver [%s].',
-                $name,
-            ));
+            throw GrammarRegistryException::alreadyRegistered($name);
         }
 
         $this->grammars[$name] = $grammar;
     }
 
     /**
-     * @throws InvalidArgumentException
+     * @throws GrammarRegistryException
      */
     public function resolve(string|DriverName $driver): QueryGrammar
     {
         $name = $this->name($driver);
 
-        return (
-            $this->grammars[$name] ?? throw new InvalidArgumentException(sprintf(
-                'No query grammar has been registered for driver [%s].',
-                $name,
-            ))
-        );
+        return $this->grammars[$name] ?? throw GrammarRegistryException::notRegistered($name);
     }
 
     private function name(string|DriverName $driver): string

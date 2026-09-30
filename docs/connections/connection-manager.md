@@ -28,9 +28,9 @@ Both arguments are `iterable`, so a generator or a lazy service-container
 collection works as well as an array.
 
 Drivers are keyed by their `DriverName`. Registering the same driver name twice
-throws a `ConnectionException` at construction rather than letting one
+throws a `ConnectionRegistryException` at construction rather than letting one
 registration silently shadow the other. Asking for a config whose driver was
-never registered throws a `ConnectionException` from `create()`.
+never registered throws a `ConnectionRegistryException` from `create()`.
 
 `create()` returns a fresh `Connection` on every call. Caching is the manager's
 job.
@@ -52,7 +52,7 @@ $manager = new ConnectionManager($factory, $configs, default: 'primary');
 | `configs` | `iterable<ConnectionConfig>` | *required* | The configured connections, keyed internally by their `name`. |
 | `default` | `string` | `'default'` | The name used when a connection is requested without one. |
 
-Configuring the same connection name twice throws a `ConnectionException` at
+Configuring the same connection name twice throws a `ConnectionRegistryException` at
 construction. The `default` name is not checked at construction; asking for a
 connection that was never configured throws from `connection()`, with the names
 that *are* configured in its context.
@@ -71,7 +71,7 @@ $manager->disconnectAll();
 
 | Method | Behaviour |
 | --- | --- |
-| `connection(?string $name = null)` | Returns the named connection, building it on first request and returning the same instance afterwards. Falls back to the default name. Throws `ConnectionException` when the name is not configured. |
+| `connection(?string $name = null)` | Returns the named connection, building it on first request and returning the same instance afterwards. Falls back to the default name. Throws `ConnectionRegistryException` when the name is not configured. |
 | `disconnect(?string $name = null)` | Closes the connection and drops it from the cache, so the next request builds a new one. A no-op when that connection was never built. |
 | `disconnectAll()` | Disconnects every connection that has been built. |
 | `names()` | The configured connection names, in the order they were registered. |

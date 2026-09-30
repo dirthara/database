@@ -44,7 +44,7 @@ quoted into nonsense:
 
 ```php
 $database->table('users')->select('COUNT(*)');
-// InvalidArgumentException: The identifier [COUNT(*)] looks like SQL rather
+// InvalidExpressionException: The identifier "COUNT(*)" looks like SQL rather
 // than a name; use a raw expression instead.
 ```
 

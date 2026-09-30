@@ -122,7 +122,7 @@ permit = ["@native", "Dirthara\\Database\\**"]
 
 [[guard.perimeter.rules]]
 namespace = "Dirthara\\Database\\Connection\\"
-permit = ["@native", "Dirthara\\Database\\Connection\\**", "Dirthara\\Database\\Exceptions\\**"]
+permit = ["@native", "Dirthara\\Database\\Connection\\**", "Dirthara\\Database\\Exception\\**"]
 
 [[guard.perimeter.rules]]
 namespace = "Dirthara\\Database\\Tests\\"
@@ -131,7 +131,7 @@ permit = ["@all"]
 # CS-1 §15: classes are final.
 [[guard.structural.rules]]
 on = "Dirthara\\Database\\**"
-not-on = "Dirthara\\Database\\{Connection\\Driver\\PdoDriver,Connection\\Transaction\\PrefixedTransactionGrammar,Query\\Grammar\\SqlQueryGrammar,Exceptions\\**,Connection\\Exceptions\\**}"
+not-on = "Dirthara\\Database\\{Connection\\Driver\\PdoDriver,Connection\\Transaction\\PrefixedTransactionGrammar,Query\\Grammar\\SqlQueryGrammar}"
 target = "class"
 must-be-final = true
 reason = "Classes are final (CS-1 §15)."

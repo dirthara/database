@@ -7,22 +7,20 @@ namespace Dirthara\Database\Connection;
 use PDO;
 use PDOException;
 use PDOStatement;
-use Dirthara\Database\Connection\Pdo\PdoError;
 use Dirthara\Database\Connection\Driver\Driver;
 use Dirthara\Database\Connection\Result\Result;
+use Dirthara\Database\Exception\QueryException;
 use Dirthara\Database\Connection\Result\PdoResult;
 use Dirthara\Database\Connection\Driver\DriverName;
-use Dirthara\Database\Connection\Exceptions\QueryException;
+use Dirthara\Database\Exception\ConnectionException;
+use Dirthara\Database\Exception\TransactionException;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
-use Dirthara\Database\Connection\Exceptions\ConnectionException;
 use Dirthara\Database\Connection\Transaction\TransactionManager;
-use Dirthara\Database\Connection\Exceptions\TransactionException;
 use Dirthara\Database\Connection\Transaction\PdoTransactionManager;
 
 use function is_int;
 use function is_bool;
 use function is_null;
-use function array_merge;
 
 final class PdoConnection implements Connection
 {
@@ -63,27 +61,18 @@ final class PdoConnection implements Connection
             $statement = $this->pdo()->prepare($query);
 
             if ($statement === false) {
-                throw new QueryException('Failed to prepare the query.', context: $this->context(Operation::Prepare, [
-                    'query' => $query,
-                ]));
+                throw QueryException::prepareRefused($this->config, $query);
             }
 
             $this->bindParameters($statement, $parameters);
 
             if ($statement->execute() === false) {
-                throw new QueryException('Failed to execute the query.', context: $this->context(Operation::Execute, [
-                    'query' => $query,
-                ]));
+                throw QueryException::executeRefused($this->config, $query);
             }
 
             return new PdoResult($statement);
         } catch (PDOException $exception) {
-            throw new QueryException(
-                message: $exception->getMessage(),
-                code: PdoError::code($exception),
-                previous: $exception,
-                context: $this->context(Operation::Execute, ['query' => $query], $exception),
-            );
+            throw QueryException::executeFailed($this->config, $query, $exception);
         }
     }
 
@@ -96,12 +85,7 @@ final class PdoConnection implements Connection
         try {
             $id = $this->pdo()->lastInsertId($sequence);
         } catch (PDOException $exception) {
-            throw new QueryException(
-                message: $exception->getMessage(),
-                code: PdoError::code($exception),
-                previous: $exception,
-                context: $this->context(Operation::LastInsertId, cause: $exception),
-            );
+            throw QueryException::lastInsertIdFailed($this->config, $exception);
         }
 
         return $id === false ? null : $id;
@@ -113,10 +97,7 @@ final class PdoConnection implements Connection
     public function disconnect(): void
     {
         if ($this->transactions !== null && $this->transactions->inTransaction()) {
-            throw new TransactionException(
-                'Cannot disconnect while a transaction is active.',
-                context: $this->context(Operation::Disconnect),
-            );
+            throw TransactionException::activeOnDisconnect($this->config);
         }
 
         $this->transactions = null;
@@ -131,21 +112,6 @@ final class PdoConnection implements Connection
     public function driver(): DriverName
     {
         return $this->driver->name();
-    }
-
-    /**
-     * @param array<string, mixed> $extra
-     *
-     * @return array<string, mixed>
-     */
-    private function context(Operation $operation, array $extra = [], ?PDOException $cause = null): array
-    {
-        return array_merge(
-            $this->config->diagnostics(),
-            ['operation' => $operation->value],
-            $extra,
-            PdoError::describe($cause),
-        );
     }
 
     /**

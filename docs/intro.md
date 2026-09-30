@@ -77,7 +77,7 @@ the SQL — so a limited, ordered delete does not quietly turn into a delete of
 everything. [Grammars](query-builder/grammars.md) lists what each database
 accepts.
 
-Every exception extends `DatabaseException` and carries structured context for a
+Every exception implements `DatabaseException` and carries structured context for a
 PSR-3 logger. Credentials are never part of it. See
 [Error handling](error-handling.md).
 

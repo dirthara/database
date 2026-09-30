@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Query\Grammar;
 
-use LogicException;
 use Dirthara\Database\Query\Sql\JoinType;
 use Dirthara\Database\Query\Clause\OrderBy;
 use Dirthara\Database\Query\Clause\JoinClause;
 use Dirthara\Database\Query\Queries\SelectQuery;
+use Dirthara\Database\Exception\UnsupportedQueryException;
 
 use function implode;
 use function sprintf;
@@ -28,7 +28,7 @@ final class MySqlQueryGrammar extends SqlQueryGrammar
     protected function compileJoin(JoinClause $join, array &$bindings): string
     {
         if ($join->type === JoinType::Full) {
-            throw new LogicException('MySQL does not support a full join.');
+            throw UnsupportedQueryException::fullJoin('MySQL');
         }
 
         return parent::compileJoin($join, $bindings);

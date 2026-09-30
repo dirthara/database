@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Tests\Query\Sql;
 
-use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Database\Query\Sql\ComparisonOperator;
+use Dirthara\Database\Exception\InvalidExpressionException;
 
 use function sprintf;
 use function array_map;
@@ -107,9 +107,9 @@ final class ComparisonOperatorTest extends TestCase
     #[DataProvider('clauses')]
     public function it_rejects_a_test_that_is_not_a_comparison(string $operator): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidExpressionException::class);
         $this->expectExceptionMessageIsOrContains(sprintf(
-            'The operator [%s] cannot compare two values; expected one of =, !=, >, >=, <, <=, LIKE, NOT LIKE.',
+            'The operator "%s" cannot compare two values; expected one of =, !=, >, >=, <, <=, LIKE, NOT LIKE.',
             $operator,
         ));
 
@@ -119,9 +119,9 @@ final class ComparisonOperatorTest extends TestCase
     #[Test]
     public function it_rejects_an_operator_it_does_not_know(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidExpressionException::class);
         $this->expectExceptionMessageIsOrContains(
-            'The operator [~=] cannot compare two values; expected one of =, !=, >, >=, <, <=, LIKE, NOT LIKE.',
+            'The operator "~=" cannot compare two values; expected one of =, !=, >, >=, <, <=, LIKE, NOT LIKE.',
         );
 
         ComparisonOperator::parse('~=');

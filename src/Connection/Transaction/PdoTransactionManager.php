@@ -9,14 +9,10 @@ use Closure;
 use Throwable;
 use PDOException;
 use Dirthara\Database\Connection\Operation;
-use Dirthara\Database\Connection\Pdo\PdoError;
-use Dirthara\Database\Exceptions\DatabaseException;
+use Dirthara\Database\Exception\DatabaseException;
+use Dirthara\Database\Exception\ConnectionException;
+use Dirthara\Database\Exception\TransactionException;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
-use Dirthara\Database\Connection\Exceptions\ConnectionException;
-use Dirthara\Database\Connection\Exceptions\TransactionException;
-
-use function sprintf;
-use function array_merge;
 
 final class PdoTransactionManager implements TransactionManager
 {
@@ -144,7 +140,7 @@ final class PdoTransactionManager implements TransactionManager
             $this->rollback();
 
             return [];
-        } catch (Throwable $failure) {
+        } catch (DatabaseException $failure) {
             return ['rollback_failure' => $failure->getMessage()];
         } finally {
             $this->level = $enclosingLevel;
@@ -162,19 +158,11 @@ final class PdoTransactionManager implements TransactionManager
         try {
             $succeeded = $action(($this->pdo)());
         } catch (PDOException $exception) {
-            throw new TransactionException(
-                message: $exception->getMessage(),
-                code: PdoError::code($exception),
-                previous: $exception,
-                context: $this->context($operation, $exception),
-            );
+            throw TransactionException::failed($this->config, $operation, $exception);
         }
 
         if (!$succeeded) {
-            throw new TransactionException(
-                sprintf('The database refused the %s operation.', $operation->value),
-                context: $this->context($operation),
-            );
+            throw TransactionException::refused($this->config, $operation);
         }
     }
 
@@ -192,19 +180,7 @@ final class PdoTransactionManager implements TransactionManager
     private function ensureActiveTransaction(Operation $operation): void
     {
         if (!$this->inTransaction()) {
-            throw new TransactionException('There is no active transaction.', context: $this->context($operation));
+            throw TransactionException::noActiveTransaction($this->config, $operation);
         }
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function context(Operation $operation, ?PDOException $cause = null): array
-    {
-        return array_merge(
-            $this->config->diagnostics(),
-            ['operation' => $operation->value],
-            PdoError::describe($cause),
-        );
     }
 }

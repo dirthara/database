@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Dirthara\Database\Query;
 
 use Closure;
-use LogicException;
-use InvalidArgumentException;
 use Dirthara\Database\Query\Clause\Union;
 use Dirthara\Database\Query\Clause\Where;
 use Dirthara\Database\Query\Sql\JoinType;
@@ -16,6 +14,7 @@ use Dirthara\Database\Connection\Connection;
 use Dirthara\Database\Query\Clause\RawWhere;
 use Dirthara\Database\Query\Clause\WhereNull;
 use Dirthara\Database\Query\Clause\JoinClause;
+use Dirthara\Database\Exception\QueryException;
 use Dirthara\Database\Query\Clause\NestedWhere;
 use Dirthara\Database\Query\Clause\WhereClause;
 use Dirthara\Database\Query\Clause\WhereColumn;
@@ -33,16 +32,16 @@ use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
 use Dirthara\Database\Query\Sql\AggregateFunction;
 use Dirthara\Database\Query\Sql\ComparisonOperator;
+use Dirthara\Database\Exception\ConnectionException;
 use Dirthara\Database\Query\Expression\RawExpression;
+use Dirthara\Database\Exception\InvalidQueryException;
 use Dirthara\Database\Query\Expression\ExpressionFactory;
-use Dirthara\Database\Connection\Exceptions\QueryException;
-use Dirthara\Database\Connection\Exceptions\ConnectionException;
+use Dirthara\Database\Exception\UnsupportedQueryException;
 
 use function trim;
 use function count;
 use function reset;
 use function sprintf;
-use function ucfirst;
 use function is_array;
 use function array_map;
 use function is_scalar;
@@ -103,7 +102,7 @@ final class QueryBuilder
         string|Expression $table,
     ) {
         if (is_string($table) && trim($table) === '') {
-            throw new InvalidArgumentException('A query table cannot be empty.');
+            throw InvalidQueryException::emptyTable();
         }
 
         $this->table = ExpressionFactory::from($table);
@@ -143,7 +142,7 @@ final class QueryBuilder
         $operand = $query->toSelectQuery();
 
         if ($operand->orders !== [] || $operand->limit !== null || $operand->offset !== null) {
-            throw new LogicException('A union operand cannot order or page itself; order and page the union instead.');
+            throw InvalidQueryException::orderedUnionOperand();
         }
 
         $this->unions[] = new Union(query: $operand, all: $all);
@@ -456,7 +455,7 @@ final class QueryBuilder
     public function limit(int $limit): self
     {
         if ($limit < 0) {
-            throw new InvalidArgumentException('Query limit cannot be negative.');
+            throw InvalidQueryException::negativeLimit($limit);
         }
 
         $this->limit = $limit;
@@ -467,7 +466,7 @@ final class QueryBuilder
     public function offset(int $offset): self
     {
         if ($offset < 0) {
-            throw new InvalidArgumentException('Query offset cannot be negative.');
+            throw InvalidQueryException::negativeOffset($offset);
         }
 
         $this->offset = $offset;
@@ -510,15 +509,15 @@ final class QueryBuilder
     public function chunk(int $size, callable $callback): bool
     {
         if ($size < 1) {
-            throw new InvalidArgumentException('A chunk size must be at least one row.');
+            throw InvalidQueryException::invalidChunkSize($size);
         }
 
         if ($this->orders === []) {
-            throw new LogicException('A chunked query needs an ordering, or its pages can skip and repeat rows.');
+            throw InvalidQueryException::unorderedChunk();
         }
 
         if ($this->limit !== null || $this->offset !== null) {
-            throw new LogicException('A chunked query cannot limit or page itself; chunk() pages it.');
+            throw InvalidQueryException::pagedChunk();
         }
 
         $page = 1;
@@ -657,7 +656,7 @@ final class QueryBuilder
         $rows = $this->normaliseInsertRows($values);
 
         if (count($rows) !== 1) {
-            throw new LogicException('An insert that returns a key must have exactly one row.');
+            throw InvalidQueryException::insertGetIdRowCount(count($rows));
         }
 
         $insert = new InsertQuery(table: $this->table, rows: $rows);
@@ -781,11 +780,7 @@ final class QueryBuilder
                 return $this->addWhereNull($column, true, $boolean);
             }
 
-            throw new InvalidArgumentException(sprintf(
-                'Operator [%s (%s)] cannot be used with NULL.',
-                $operator->name,
-                $operator->value,
-            ));
+            throw InvalidQueryException::nullComparison(sprintf('%s (%s)', $operator->name, $operator->value));
         }
 
         $this->wheres[] = new Where(
@@ -824,10 +819,7 @@ final class QueryBuilder
     private function aggregate(AggregateFunction $function, string|Expression $column): string|int|float|bool|null
     {
         if ($function !== AggregateFunction::Count && $this->groups !== []) {
-            throw new LogicException(sprintf(
-                'A grouped query has one %s per group; add it to the selection instead.',
-                $function->value,
-            ));
+            throw InvalidQueryException::groupedAggregate($function->value);
         }
 
         $query = $this->grammar->compileAggregate($this->toSelectQuery(), $function, ExpressionFactory::from($column));
@@ -946,7 +938,7 @@ final class QueryBuilder
         BooleanOperator $boolean,
     ): self {
         if ($value === null) {
-            throw new InvalidArgumentException('A having condition cannot compare to NULL.');
+            throw InvalidQueryException::nullHaving();
         }
 
         $this->havings[] = new Where(
@@ -964,7 +956,7 @@ final class QueryBuilder
      *
      * @return list<array<string, mixed>>
      *
-     * @throws InvalidArgumentException
+     * @throws InvalidQueryException
      */
     private function normaliseInsertRows(array $values): array
     {
@@ -972,7 +964,7 @@ final class QueryBuilder
             // @mago-expect analysis:mixed-assignment
             foreach ($values as $row) {
                 if (!is_array($row)) {
-                    throw new InvalidArgumentException('Bulk inserts must contain arrays of column values.');
+                    throw InvalidQueryException::invalidBulkInsert();
                 }
             }
 
@@ -985,16 +977,17 @@ final class QueryBuilder
     }
 
     /**
-     * @throws LogicException
+     * @throws InvalidQueryException
+     * @throws UnsupportedQueryException
      */
     private function assertMutable(string $operation): void
     {
         if ($this->joins !== []) {
-            throw new LogicException(sprintf('Joined %s queries are not supported yet.', $operation));
+            throw UnsupportedQueryException::joinedMutation($operation);
         }
 
         if ($this->offset !== null) {
-            throw new LogicException(sprintf('%s queries cannot skip rows with an offset.', ucfirst($operation)));
+            throw InvalidQueryException::offsetMutation($operation);
         }
     }
 }

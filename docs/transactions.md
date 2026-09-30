@@ -150,8 +150,8 @@ instead, when that exception is a `DatabaseException`.
 try {
     $connection->transactions()->run($work);
 } catch (DatabaseException $exception) {
-    $context = $exception->getContext();
-    // ['connection' => 'primary', ..., 'rollback_failure' => 'MySQL server has gone away']
+    $context = $exception->context;
+    // ['connection' => 'primary', ..., 'rollback_failure' => 'Unable to roll back the transaction on connection "primary" (SQLSTATE HY000).']
 }
 ```
 
@@ -207,7 +207,7 @@ validated on construction:
   and underscores.
 - It must be at most 24 characters.
 
-Either violation throws a `TransactionException` where the prefix is
+Either violation throws an `InvalidConnectionConfigException` where the prefix is
 constructed, long before it can reach a `SAVEPOINT` statement.
 
 One prefix instance can be shared by every grammar; it is readonly and holds

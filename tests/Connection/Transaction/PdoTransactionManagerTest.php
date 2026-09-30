@@ -9,11 +9,12 @@ use RuntimeException;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\Connection\Operation;
+use Dirthara\Database\Exception\DatabaseException;
 use Dirthara\Database\Connection\Driver\DriverName;
-use Dirthara\Database\Exceptions\DatabaseException;
+use Dirthara\Database\Exception\TransactionException;
+use Dirthara\Database\Tests\Fixtures\ContextualException;
 use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
-use Dirthara\Database\Connection\Exceptions\TransactionException;
 use Dirthara\Database\Connection\Transaction\PdoTransactionManager;
 use Dirthara\Database\Connection\Transaction\StandardTransactionGrammar;
 
@@ -103,9 +104,12 @@ final class PdoTransactionManagerTest extends TestCase
 
             self::fail('Expected a TransactionException.');
         } catch (TransactionException $exception) {
-            self::assertSame('There is no active transaction.', $exception->getMessage());
-            self::assertSame('commit', $exception->getContext()['operation']);
-            self::assertSame('testing', $exception->getContext()['connection']);
+            self::assertSame(
+                'Unable to commit the transaction on connection "testing": there is no active transaction.',
+                $exception->getMessage(),
+            );
+            self::assertSame('commit', $exception->context['operation']);
+            self::assertSame('testing', $exception->context['connection']);
         }
     }
 
@@ -154,7 +158,7 @@ final class PdoTransactionManagerTest extends TestCase
                 // own rollback fail as well.
                 $this->pdo->commit();
 
-                throw new DatabaseException('callback failed');
+                throw new ContextualException('callback failed');
             });
         } catch (DatabaseException $exception) {
             $caught = $exception;
@@ -162,7 +166,7 @@ final class PdoTransactionManagerTest extends TestCase
 
         self::assertInstanceOf(DatabaseException::class, $caught);
         self::assertSame('callback failed', $caught->getMessage());
-        self::assertArrayHasKey('rollback_failure', $caught->getContext());
+        self::assertArrayHasKey('rollback_failure', $caught->context);
 
         self::assertSame(0, $manager->level());
     }
@@ -180,14 +184,14 @@ final class PdoTransactionManagerTest extends TestCase
             $manager->run(function (): void {
                 $this->pdo->commit();
 
-                throw new DatabaseException('inner failed');
+                throw new ContextualException('inner failed');
             });
         } catch (DatabaseException $exception) {
             $caught = $exception;
         }
 
         self::assertInstanceOf(DatabaseException::class, $caught);
-        self::assertArrayHasKey('rollback_failure', $caught->getContext());
+        self::assertArrayHasKey('rollback_failure', $caught->context);
         self::assertSame(1, $manager->level());
     }
 
@@ -235,8 +239,11 @@ final class PdoTransactionManagerTest extends TestCase
 
             self::fail('Expected a TransactionException.');
         } catch (TransactionException $exception) {
-            self::assertSame('The database refused the begin operation.', $exception->getMessage());
-            self::assertSame(Operation::Begin->value, $exception->getContext()['operation']);
+            self::assertSame(
+                'The database refused to begin a transaction on connection "testing".',
+                $exception->getMessage(),
+            );
+            self::assertSame(Operation::Begin->value, $exception->context['operation']);
         }
     }
 }

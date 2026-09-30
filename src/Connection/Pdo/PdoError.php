@@ -6,7 +6,6 @@ namespace Dirthara\Database\Connection\Pdo;
 
 use PDOException;
 
-use function is_int;
 use function is_array;
 use function is_string;
 use function array_key_exists;
@@ -16,17 +15,13 @@ final class PdoError
     /**
      * @return array<string, mixed>
      */
-    public static function describe(?PDOException $cause): array
+    public static function describe(PDOException $cause): array
     {
-        if ($cause === null) {
-            return [];
-        }
-
         $context = [];
 
-        $sqlstate = $cause->getCode();
+        $sqlstate = self::sqlstate($cause);
 
-        if (is_string($sqlstate) && $sqlstate !== '') {
+        if ($sqlstate !== null) {
             $context['sqlstate'] = $sqlstate;
         }
 
@@ -39,10 +34,17 @@ final class PdoError
         return $context;
     }
 
-    public static function code(PDOException $cause): int
+    public static function sqlstate(PDOException $cause): ?string
     {
-        $code = $cause->getCode();
+        $sqlstate = $cause->getCode();
 
-        return is_int($code) ? $code : 0;
+        return is_string($sqlstate) && $sqlstate !== '' ? $sqlstate : null;
+    }
+
+    public static function suffix(PDOException $cause): string
+    {
+        $sqlstate = self::sqlstate($cause);
+
+        return $sqlstate === null ? '' : ' (SQLSTATE ' . $sqlstate . ')';
     }
 }

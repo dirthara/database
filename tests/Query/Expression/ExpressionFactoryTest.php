@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Tests\Query\Expression;
 
-use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -12,6 +11,7 @@ use Dirthara\Database\Query\Expression\Aliased;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Expression\RawExpression;
 use Dirthara\Database\Query\Expression\ExpressionFactory;
+use Dirthara\Database\Exception\InvalidExpressionException;
 
 final class ExpressionFactoryTest extends TestCase
 {
@@ -76,8 +76,8 @@ final class ExpressionFactoryTest extends TestCase
     #[Test]
     public function it_rejects_more_than_one_alias(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageIsOrContains('The expression [a as b as c] has more than one alias.');
+        $this->expectException(InvalidExpressionException::class);
+        $this->expectExceptionMessageIsOrContains('The expression "a as b as c" has more than one alias.');
 
         ExpressionFactory::from('a as b as c');
     }
@@ -85,9 +85,9 @@ final class ExpressionFactoryTest extends TestCase
     #[Test]
     public function it_never_reads_a_string_as_raw_sql(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidExpressionException::class);
         $this->expectExceptionMessageIsOrContains(
-            'The identifier [COUNT(*)] looks like SQL rather than a name; use a raw expression instead.',
+            'The identifier "COUNT(*)" looks like SQL rather than a name; use a raw expression instead.',
         );
 
         ExpressionFactory::from('COUNT(*)');
@@ -96,7 +96,7 @@ final class ExpressionFactoryTest extends TestCase
     #[Test]
     public function it_rejects_an_aliased_fragment(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidExpressionException::class);
 
         ExpressionFactory::from('COUNT(*) as total');
     }

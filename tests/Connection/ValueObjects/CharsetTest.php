@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Database\Connection\ValueObjects\Charset;
-use Dirthara\Database\Connection\Exceptions\ConnectionException;
+use Dirthara\Database\Exception\InvalidConnectionConfigException;
 
 final class CharsetTest extends TestCase
 {
@@ -50,8 +50,8 @@ final class CharsetTest extends TestCase
     #[DataProvider('rejected')]
     public function it_rejects_anything_else(string $value): void
     {
-        $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessageIsOrContains('The configured charset is not a valid identifier.');
+        $this->expectException(InvalidConnectionConfigException::class);
+        $this->expectExceptionMessageIsOrContains('is not a valid identifier.');
 
         new Charset($value);
     }
@@ -62,9 +62,9 @@ final class CharsetTest extends TestCase
         try {
             new Charset('utf 8');
 
-            self::fail('Expected a ConnectionException.');
-        } catch (ConnectionException $exception) {
-            self::assertSame('utf 8', $exception->getContext()['charset']);
+            self::fail('Expected a InvalidConnectionConfigException.');
+        } catch (InvalidConnectionConfigException $exception) {
+            self::assertSame('utf 8', $exception->context['charset']);
         }
     }
 }

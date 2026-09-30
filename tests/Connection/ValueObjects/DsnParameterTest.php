@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Database\Connection\ValueObjects\DsnParameter;
-use Dirthara\Database\Connection\Exceptions\ConnectionException;
+use Dirthara\Database\Exception\InvalidConnectionConfigException;
 
 final class DsnParameterTest extends TestCase
 {
@@ -36,7 +36,7 @@ final class DsnParameterTest extends TestCase
     #[DataProvider('invalidNames')]
     public function it_rejects_a_name_that_is_not_an_identifier(string $name): void
     {
-        $this->expectException(ConnectionException::class);
+        $this->expectException(InvalidConnectionConfigException::class);
         $this->expectExceptionMessageIsOrContains('must be an identifier');
 
         new DsnParameter($name, 'yes');
@@ -45,7 +45,7 @@ final class DsnParameterTest extends TestCase
     #[Test]
     public function it_rejects_a_value_that_would_add_another_parameter(): void
     {
-        $this->expectException(ConnectionException::class);
+        $this->expectException(InvalidConnectionConfigException::class);
         $this->expectExceptionMessageIsOrContains('must not contain a semicolon');
 
         new DsnParameter('Encrypt', 'no;Database=other');

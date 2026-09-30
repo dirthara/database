@@ -10,9 +10,9 @@ use Dirthara\Database\Connection\ConnectionFactory;
 use Dirthara\Database\Connection\ConnectionManager;
 use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Connection\Driver\SQLiteDriver;
+use Dirthara\Database\Exception\ConnectionRegistryException;
 use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
-use Dirthara\Database\Connection\Exceptions\ConnectionException;
 use Dirthara\Database\Connection\Transaction\StandardTransactionGrammar;
 
 final class ConnectionManagerTest extends TestCase
@@ -51,11 +51,11 @@ final class ConnectionManagerTest extends TestCase
         try {
             $manager->connection('replica');
 
-            self::fail('Expected a ConnectionException.');
-        } catch (ConnectionException $exception) {
-            self::assertSame('The requested database connection is not configured.', $exception->getMessage());
-            self::assertSame('replica', $exception->getContext()['connection']);
-            self::assertSame(['primary'], $exception->getContext()['configured']);
+            self::fail('Expected a ConnectionRegistryException.');
+        } catch (ConnectionRegistryException $exception) {
+            self::assertSame('The database connection "replica" is not configured.', $exception->getMessage());
+            self::assertSame('replica', $exception->context['connection']);
+            self::assertSame(['primary'], $exception->context['configured']);
         }
     }
 
@@ -64,7 +64,7 @@ final class ConnectionManagerTest extends TestCase
     {
         $manager = new ConnectionManager($this->factory(), [$this->config('primary')]);
 
-        $this->expectException(ConnectionException::class);
+        $this->expectException(ConnectionRegistryException::class);
 
         $manager->connection();
     }
@@ -72,7 +72,7 @@ final class ConnectionManagerTest extends TestCase
     #[Test]
     public function it_rejects_a_duplicated_connection_name(): void
     {
-        $this->expectException(ConnectionException::class);
+        $this->expectException(ConnectionRegistryException::class);
         $this->expectExceptionMessageIsOrContains('configured more than once');
 
         new ConnectionManager($this->factory(), [$this->config('primary'), $this->config('primary')]);

@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Tests\Query\Expression;
 
-use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Database\Query\Expression\Aliased;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Expression\RawExpression;
+use Dirthara\Database\Exception\InvalidExpressionException;
 
 final class IdentifierTest extends TestCase
 {
@@ -52,16 +52,16 @@ final class IdentifierTest extends TestCase
         return [
             'empty' => ['', 'An identifier cannot be empty.'],
             'blank' => ['   ', 'An identifier cannot be empty.'],
-            'trailing dot' => ['users.', 'The identifier [users.] has an empty segment.'],
-            'leading dot' => ['.users', 'The identifier [.users] has an empty segment.'],
-            'double dot' => ['a..b', 'The identifier [a..b] has an empty segment.'],
+            'trailing dot' => ['users.', 'The identifier "users." has an empty segment.'],
+            'leading dot' => ['.users', 'The identifier ".users" has an empty segment.'],
+            'double dot' => ['a..b', 'The identifier "a..b" has an empty segment.'],
             'function call' => [
                 'COUNT(*)',
-                'The identifier [COUNT(*)] looks like SQL rather than a name; use a raw expression instead.',
+                'The identifier "COUNT(*)" looks like SQL rather than a name; use a raw expression instead.',
             ],
             'argument list' => [
                 'IFNULL(a, b)',
-                'The identifier [IFNULL(a, b)] looks like SQL rather than a name; use a raw expression instead.',
+                'The identifier "IFNULL(a, b)" looks like SQL rather than a name; use a raw expression instead.',
             ],
         ];
     }
@@ -70,7 +70,7 @@ final class IdentifierTest extends TestCase
     #[DataProvider('rejected')]
     public function it_rejects_anything_that_is_not_a_name(string $name, string $message): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidExpressionException::class);
         $this->expectExceptionMessageIsOrContains($message);
 
         new Identifier($name);
@@ -97,7 +97,7 @@ final class IdentifierTest extends TestCase
     #[Test]
     public function an_alias_cannot_be_empty(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidExpressionException::class);
         $this->expectExceptionMessageIsOrContains('An alias cannot be empty.');
 
         new Aliased(new Identifier('users'), '  ');

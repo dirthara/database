@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Dirthara\Database\Query\Expression;
 
-use InvalidArgumentException;
+use Dirthara\Database\Exception\InvalidExpressionException;
 
 use function trim;
-use function sprintf;
 use function preg_match;
 use function preg_match_all;
 
@@ -23,7 +22,7 @@ final readonly class ExpressionFactory
         $matches = [];
 
         if ((int) preg_match_all('/\s+as\s+/i', $value) > 1) {
-            throw new InvalidArgumentException(sprintf('The expression [%s] has more than one alias.', $value));
+            throw InvalidExpressionException::multipleAliases($value);
         }
 
         if (preg_match('/^(.+?)\s+as\s+(.+)$/i', $value, $matches) === 1) {

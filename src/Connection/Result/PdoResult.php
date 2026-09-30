@@ -6,7 +6,7 @@ namespace Dirthara\Database\Connection\Result;
 
 use PDO;
 use PDOStatement;
-use Dirthara\Database\Connection\Exceptions\ResultException;
+use Dirthara\Database\Exception\ResultException;
 
 use function is_int;
 use function is_array;

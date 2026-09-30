@@ -15,9 +15,9 @@ use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Connection\Driver\MySqlDriver;
 use Dirthara\Database\Connection\Driver\SQLiteDriver;
 use Dirthara\Database\Connection\ConnectionMiddleware;
+use Dirthara\Database\Exception\ConnectionRegistryException;
 use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
-use Dirthara\Database\Connection\Exceptions\ConnectionException;
 use Dirthara\Database\Connection\Transaction\StandardTransactionGrammar;
 
 final class ConnectionFactoryTest extends TestCase
@@ -78,18 +78,21 @@ final class ConnectionFactoryTest extends TestCase
                 name: 'reporting',
             ));
 
-            self::fail('Expected a ConnectionException.');
-        } catch (ConnectionException $exception) {
-            self::assertSame('The requested database driver is not registered.', $exception->getMessage());
-            self::assertSame('mysql', $exception->getContext()['driver']);
-            self::assertSame('reporting', $exception->getContext()['connection']);
+            self::fail('Expected a ConnectionRegistryException.');
+        } catch (ConnectionRegistryException $exception) {
+            self::assertSame(
+                'The database driver "mysql" requested by connection "reporting" is not registered.',
+                $exception->getMessage(),
+            );
+            self::assertSame('mysql', $exception->context['driver']);
+            self::assertSame('reporting', $exception->context['connection']);
         }
     }
 
     #[Test]
     public function it_rejects_a_duplicated_driver(): void
     {
-        $this->expectException(ConnectionException::class);
+        $this->expectException(ConnectionRegistryException::class);
         $this->expectExceptionMessageIsOrContains('registered more than once');
 
         new ConnectionFactory([

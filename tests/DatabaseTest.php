@@ -5,25 +5,27 @@ declare(strict_types=1);
 namespace Dirthara\Database\Tests;
 
 use RuntimeException;
-use InvalidArgumentException;
 use Dirthara\Database\Database;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Database\ConnectedDatabase;
+use Dirthara\Database\Exception\QueryException;
 use Dirthara\Database\Query\Expression\Identifier;
 use Dirthara\Database\Query\Queries\CompiledQuery;
 use Dirthara\Database\Connection\ConnectionFactory;
 use Dirthara\Database\Connection\ConnectionManager;
 use Dirthara\Database\Connection\Driver\DriverName;
 use Dirthara\Database\Connection\Driver\MySqlDriver;
+use Dirthara\Database\Exception\ConnectionException;
 use Dirthara\Database\Connection\Driver\SQLiteDriver;
 use Dirthara\Database\Query\Expression\RawExpression;
+use Dirthara\Database\Exception\InvalidQueryException;
+use Dirthara\Database\Exception\GrammarRegistryException;
 use Dirthara\Database\Query\Grammar\QueryGrammarResolver;
-use Dirthara\Database\Connection\Exceptions\QueryException;
+use Dirthara\Database\Exception\ConnectionRegistryException;
 use Dirthara\Database\Tests\Fixtures\Query\RecordingGrammar;
 use Dirthara\Database\Connection\ValueObjects\SavepointPrefix;
 use Dirthara\Database\Connection\ValueObjects\ConnectionConfig;
-use Dirthara\Database\Connection\Exceptions\ConnectionException;
 use Dirthara\Database\Connection\Transaction\StandardTransactionGrammar;
 
 final class DatabaseTest extends TestCase
@@ -85,8 +87,8 @@ final class DatabaseTest extends TestCase
     #[Test]
     public function it_reports_an_unconfigured_connection(): void
     {
-        $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessageIsOrContains('The requested database connection is not configured.');
+        $this->expectException(ConnectionRegistryException::class);
+        $this->expectExceptionMessageIsOrContains('is not configured.');
 
         $this->database()->connection('missing');
     }
@@ -130,7 +132,7 @@ final class DatabaseTest extends TestCase
     #[Test]
     public function it_reports_an_unconfigured_connection_when_scoping(): void
     {
-        $this->expectException(ConnectionException::class);
+        $this->expectException(ConnectionRegistryException::class);
 
         $this->database()->using('missing');
     }
@@ -140,8 +142,8 @@ final class DatabaseTest extends TestCase
     {
         $database = $this->database(grammars: new QueryGrammarResolver());
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageIsOrContains('No query grammar has been registered for driver [sqlite].');
+        $this->expectException(GrammarRegistryException::class);
+        $this->expectExceptionMessageIsOrContains('No query grammar is registered for driver "sqlite".');
 
         $database->using();
     }
@@ -185,7 +187,7 @@ final class DatabaseTest extends TestCase
     #[Test]
     public function it_rejects_an_empty_table(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidQueryException::class);
         $this->expectExceptionMessageIsOrContains('A query table cannot be empty.');
 
         $this->database()->table('');

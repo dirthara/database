@@ -39,7 +39,7 @@ $database->table('users')->insert([
     ['name' => 'Ada', 'active' => 1],
     ['active' => 0, 'name' => 'Grace'],
 ]);
-// InvalidArgumentException: Every inserted row needs the same columns in the same order.
+// InvalidQueryException: Every inserted row needs the same columns in the same order.
 ```
 
 :::note
@@ -88,7 +88,7 @@ Only one row can return one key, so a multi-row insert is refused:
 
 ```php
 $database->table('users')->insertGetId([['name' => 'Ada'], ['name' => 'Grace']]);
-// LogicException: An insert that returns a key must have exactly one row.
+// InvalidQueryException: An insert that returns a key must have exactly one row.
 ```
 
 ## Updating
@@ -136,8 +136,8 @@ $database->table('users')->where('active', '=', 0)->orderBy('created_at')->limit
 
 :::caution
 This is the part worth knowing before you rely on it. An ordered, limited delete
-is a MySQL feature. On PostgreSQL, SQLite, or SQL Server the same code throws a
-`LogicException` at compile time rather than deleting an arbitrary row, so a
+is a MySQL feature. On PostgreSQL, SQLite, or SQL Server the same code throws an
+`UnsupportedQueryException` at compile time rather than deleting an arbitrary row, so a
 query that works in development will not silently pick the wrong row in
 production on another database.
 :::
