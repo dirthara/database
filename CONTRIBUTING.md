@@ -124,8 +124,8 @@ Then update the supported versions table below and in
 
 | Branch | PHP | Status |
 | --- | --- | --- |
-| `0.1` | 8.5 | Active |
-| `0.2` | 8.5 | Active development; unreleased |
+| `0.2` | 8.5 | Active |
+| `0.1` | 8.5 | End of life |
 
 Every driver is exercised against a real server by the conformance suite.
 

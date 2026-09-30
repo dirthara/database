@@ -144,11 +144,11 @@ production on another database.
 
 The exception names what it could not do:
 
-```
+```text
 A limited delete query is not supported by this driver.
 An ordered delete query is not supported by this driver.
 Delete queries cannot skip rows with an offset.
-Joined delete queries are not supported yet.
+Joined delete queries are not supported.
 ```
 
 Why each one behaves that way is in [Grammars](grammars.md#mutations). The short

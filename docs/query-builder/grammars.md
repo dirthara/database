@@ -66,7 +66,7 @@ query already implies.
 
 MySQL has no `FULL JOIN`, so `MySqlQueryGrammar` rejects it:
 
-```
+```text
 MySQL does not support a full join.
 ```
 
